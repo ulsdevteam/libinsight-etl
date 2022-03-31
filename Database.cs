@@ -59,7 +59,7 @@ class Database : IDisposable
             Id number,
             ToolsDiscussed varchar2(4000)
         );
-        create table ULS_LIBINISGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS
+        create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS
         (
             Id number,
             TeachingConsultationResults varchar2(4000)
@@ -182,7 +182,7 @@ class Database : IDisposable
         if (record["Teaching Consultation Results"] is JArray consultation && consultation.Any())
         {
             await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINISGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS (Id, TeachingConsultationResults)
+                insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS (Id, TeachingConsultationResults)
                 values (:Id, :TeachingConsulationResults)
             ", consultation.Select(x => new { Id, TeachingConsultationResults = CleanString(x) }));
         }
