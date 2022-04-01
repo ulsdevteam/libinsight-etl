@@ -133,15 +133,15 @@ class Database : IDisposable
             FacultySponsorName = CleanString(record["Faculty/ Sponsor Name"]),
             FacultySponsorEmail = CleanString(record["Faculty/ Sponsor Email"]),
             Department = ArraySingleElement(record["Department"]),
-            NumberOfParticipants = (int?)record["Number of Participants"],
-            DurationOfEvent = (int?)record["Duration of Event"],
+            NumberOfParticipants = NumberOrNull(record["Number of Participants"]),
+            DurationOfEvent = NumberOrNull(record["Duration of Event"]),
             CoInstructorsOrganisation = CleanString(record["Co-Instructor(s)/ Organisation"]),
             Notes = CleanString(record["Notes"]),
             LocationOfEvent = ArraySingleElement(record["Location of Event"]),
             LocationOther = CleanString(record["Location - Other"]),
             EventType = ArraySingleElement(record["Event Type"]),
-            ClassNumber = (int?)record["Class Number (5 digits) Available at  Class Search"],
-            AdditionalMinutes = (int?)record["Additional minutes of prep/follow-up"],
+            ClassNumber = NumberOrNull(record["Class Number (5 digits) Available at  Class Search"]),
+            AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
             EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
         });
         if (record["Topics covered"] is JArray topics)
@@ -188,20 +188,21 @@ class Database : IDisposable
         }
     }
 
-    string? CleanString(JToken? input)
+    static string? CleanString(JToken? input)
     {
         var s = input?.ToString();
-        if (string.IsNullOrWhiteSpace(s))
-        {
-            return null;
-        }
-        else
-        {
-            return s.Replace("'Äô", "'");
-        }
+        return string.IsNullOrWhiteSpace(s) ? null : s.Replace("'Äô", "'").Replace("’", "'");
     }
 
-    string? ArraySingleElement(JToken? input)
+    static object? NumberOrNull(JToken? input) =>
+        input?.Type switch
+        {
+            JTokenType.Integer => (int?)input,
+            JTokenType.Float => (double?)input,
+            _ => null
+        };
+
+    static string? ArraySingleElement(JToken? input)
     {
         if (input is JArray array)
         {
