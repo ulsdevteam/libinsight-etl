@@ -15,54 +15,54 @@ class Database : IDisposable
     string TableCreationSql = @"
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH
         (
-            Id number,
-            StartDate date,
-            EnteredBy varchar2(4000),
-            EventName varchar2(4000),
-            FacultySponsorName varchar2(4000),
-            FacultySponsorEmail varchar2(4000),
-            Department varchar2(4000),
-            NumberOfParticipants number,
-            DurationOfEvent number,
-            CoInstructorsOrganisation varchar2(4000),
-            Notes varchar2(4000),
-            LocationOfEvent varchar2(4000),
-            LocationOther varchar2(4000),
-            EventType varchar2(4000),
-            ClassNumber number,
-            AdditionalMinutes number,
-            EDI varchar2(4000),
+            Id number not null,
+            StartDate date not null,
+            EnteredBy varchar2(4000) not null,
+            EventName varchar2(4000) null,
+            FacultySponsorName varchar2(4000) null,
+            FacultySponsorEmail varchar2(4000) null,
+            Department varchar2(4000) null,
+            NumberOfParticipants number not null,
+            DurationOfEvent number not null,
+            CoInstructorsOrganisation varchar2(4000) null,
+            Notes varchar2(4000) null,
+            LocationOfEvent varchar2(4000) not null,
+            LocationOther varchar2(4000) null,
+            EventType varchar2(4000) not null,
+            ClassNumber number null,
+            AdditionalMinutes number null,
+            EDI varchar2(4000) null,
             primary key (Id)
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TOPICS_COVERED
         (
-            Id number,
-            TopicsCovered varchar2(4000)
+            Id number not null,
+            TopicsCovered varchar2(4000) not null
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_METHOD_OF_DELIVERY
         (
-            Id number,
-            MethodOfDelivery varchar2(4000)
+            Id number not null,
+            MethodOfDelivery varchar2(4000) not null
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_AUDIENCE
         (
-            Id number,
-            Audience varchar2(4000)
+            Id number not null,
+            Audience varchar2(4000) not null
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_SKILLS_TAUGHT
         (
-            Id number,
-            SkillsTaught varchar2(4000)
+            Id number not null,
+            SkillsTaught varchar2(4000) not null
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TOOLS_DISCUSSED
         (
-            Id number,
-            ToolsDiscussed varchar2(4000)
+            Id number not null,
+            ToolsDiscussed varchar2(4000) not null
         );
         create table ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS
         (
-            Id number,
-            TeachingConsultationResults varchar2(4000)
+            Id number not null,
+            TeachingConsultationResults varchar2(4000) not null
         );
     ";
 
@@ -144,47 +144,47 @@ class Database : IDisposable
             AdditionalMinutes = (int?)record["Additional minutes of prep/follow-up"],
             EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
         });
-        if (record["Topics covered"] is JArray topics && topics.Any())
+        if (record["Topics covered"] is JArray topics)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TOPICS_COVERED (Id, TopicsCovered)
                 values (:Id, :TopicsCovered)
-            ", topics.Select(x => new { Id, TopicsCovered = CleanString(x) }));
+            ", topics.Select(CleanString).Where(x => x is not null).Select(x => new { Id, TopicsCovered = x }));
         }
-        if (record["Method of delivery"] is JArray methods && methods.Any())
+        if (record["Method of delivery"] is JArray methods)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_METHOD_OF_DELIVERY (Id, MethodOfDelivery)
                 values (:Id, :MethodOfDelivery)
-            ", methods.Select(x => new { Id, MethodOfDelivery = CleanString(x) }));
+            ", methods.Select(CleanString).Where(x => x is not null).Select(x => new { Id, MethodOfDelivery = x }));
         }
-        if (record["Audience"] is JArray audience && audience.Any())
+        if (record["Audience"] is JArray audience)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_AUDIENCE (Id, Audience)
                 values (:Id, :Audience)
-            ", audience.Select(x => new { Id, Audience = CleanString(x) }));
+            ", audience.Select(CleanString).Where(x => x is not null).Select(x => new { Id, Audience = x }));
         }
-        if (record["Skills taught"] is JArray skills && skills.Any())
+        if (record["Skills taught"] is JArray skills)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_SKILLS_TAUGHT (Id, SkillsTaught)
                 values (:Id, :SkillsTaught)
-            ", skills.Select(x => new { Id, SkillsTaught = CleanString(x) }));
+            ", skills.Select(CleanString).Where(x => x is not null).Select(x => new { Id, SkillsTaught = x }));
         }
-        if (record["Tools discussed"] is JArray tools && tools.Any())
+        if (record["Tools discussed"] is JArray tools)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TOOLS_DISCUSSED (Id, ToolsDiscussed)
                 values (:Id, :ToolsDiscussed)
-            ", tools.Select(x => new { Id, ToolsDiscussed = CleanString(x) }));
+            ", tools.Select(CleanString).Where(x => x is not null).Select(x => new { Id, ToolsDiscussed = x }));
         }
-        if (record["Teaching Consultation Results"] is JArray consultation && consultation.Any())
+        if (record["Teaching Consultation Results"] is JArray consultation)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS (Id, TeachingConsultationResults)
                 values (:Id, :TeachingConsultationResults)
-            ", consultation.Select(x => new { Id, TeachingConsultationResults = CleanString(x) }));
+            ", consultation.Select(CleanString).Where(x => x is not null).Select(x => new { Id, TeachingConsultationResults = x }));
         }
     }
 
