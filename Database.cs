@@ -183,7 +183,7 @@ class Database : IDisposable
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INSTRUCTION_OUTREACH_TEACHING_CONSULTATION_RESULTS (Id, TeachingConsultationResults)
-                values (:Id, :TeachingConsulationResults)
+                values (:Id, :TeachingConsultationResults)
             ", consultation.Select(x => new { Id, TeachingConsultationResults = CleanString(x) }));
         }
     }
