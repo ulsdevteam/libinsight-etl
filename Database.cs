@@ -79,10 +79,24 @@ class Database : IDisposable
         }
     }
 
+    async Task<bool> RecordExistsInDb(int recordId)
+    {
+        var records = await Connection.QueryAsync(
+            "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = :recordId",
+            new { recordId });
+        return records.Any();
+    }
+
     public async Task InsertRecord(JObject record)
     {
         var RecordId = (int?)record["_id"];
-        // TODO: what to do when a record already exists in db. ignore or update?
+        if (RecordId is null)
+            throw new Exception("Record is missing an Id.");
+        else if (await RecordExistsInDb(RecordId.Value))
+        {
+            // TODO: what to do when a record already exists in db. ignore or update?
+            return;
+        }
         await Connection.ExecuteAsync(@"
             insert into ULS_LIBINSIGHT_INST_RECORDS
             (
@@ -151,13 +165,17 @@ class Database : IDisposable
                 values (:RecordId, :TopicsCovered)
             ", topics.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, TopicsCovered = x }));
         }
+
         if (record["Method of delivery"] is JArray methods)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY (RecordId, MethodOfDelivery)
                 values (:RecordId, :MethodOfDelivery)
-            ", methods.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, MethodOfDelivery = x }));
+            ",
+                methods.Select(CleanString).Where(x => x is not null)
+                    .Select(x => new { RecordId, MethodOfDelivery = x }));
         }
+
         if (record["Audience"] is JArray audience)
         {
             await Connection.ExecuteAsync(@"
@@ -165,6 +183,7 @@ class Database : IDisposable
                 values (:RecordId, :Audience)
             ", audience.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, Audience = x }));
         }
+
         if (record["Skills taught"] is JArray skills)
         {
             await Connection.ExecuteAsync(@"
@@ -172,6 +191,7 @@ class Database : IDisposable
                 values (:RecordId, :SkillsTaught)
             ", skills.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, SkillsTaught = x }));
         }
+
         if (record["Tools discussed"] is JArray tools)
         {
             await Connection.ExecuteAsync(@"
@@ -179,12 +199,15 @@ class Database : IDisposable
                 values (:RecordId, :ToolsDiscussed)
             ", tools.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, ToolsDiscussed = x }));
         }
+
         if (record["Teaching Consultation Results"] is JArray consultation)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS (RecordId, TeachingConsultationResults)
                 values (:RecordId, :TeachingConsultationResults)
-            ", consultation.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, TeachingConsultationResults = x }));
+            ",
+                consultation.Select(CleanString).Where(x => x is not null)
+                    .Select(x => new { RecordId, TeachingConsultationResults = x }));
         }
     }
 
