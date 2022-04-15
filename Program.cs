@@ -11,7 +11,7 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
     {
         var libInsightClient = new LibInsightClient();
         await libInsightClient.Authorize(Config["LIBINSIGHT_CLIENT_ID"], Config["LIBINSIGHT_CLIENT_SECRET"]);
-        var records = await libInsightClient.GetRecords(29168, 19, options.FromDate, options.ToDate ?? DateTime.Today);
+        var records = await libInsightClient.GetRecords(29168, 19, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
         using var db = new Database(Config["ORACLE_CONNECTION_STRING"]);
         await db.EnsureTablesExist();
         foreach (var record in records)
@@ -32,3 +32,5 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
         throw;
     }
 });
+
+DateTime StartOfFiscalYear() => new DateTime(DateTime.Today.Month >= 7 ? DateTime.Today.Year : DateTime.Today.Year - 1, 7, 1);
