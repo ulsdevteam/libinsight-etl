@@ -5,13 +5,6 @@ using Oracle.ManagedDataAccess.Client;
 
 class Database : IDisposable
 {
-    IDbConnection Connection { get; }
-
-    public Database(string connectionString)
-    {
-        Connection = new OracleConnection(connectionString);
-    }
-
     string TableCreationSql = @"
         create table ULS_LIBINSIGHT_INST_RECORDS
         (
@@ -22,13 +15,13 @@ class Database : IDisposable
             FacultySponsorName varchar2(4000) null,
             FacultySponsorEmail varchar2(4000) null,
             Department varchar2(4000) null,
-            NumberOfParticipants number not null,
-            DurationOfEvent number not null,
+            NumberOfParticipants number null,
+            DurationOfEvent number null,
             CoInstructorsOrganisation varchar2(4000) null,
             Notes varchar2(4000) null,
-            LocationOfEvent varchar2(4000) not null,
+            LocationOfEvent varchar2(4000) null,
             LocationOther varchar2(4000) null,
-            EventType varchar2(4000) not null,
+            EventType varchar2(4000) null,
             ClassNumber number null,
             AdditionalMinutes number null,
             EDI varchar2(4000) null,
@@ -66,6 +59,18 @@ class Database : IDisposable
         );
     ";
 
+    public Database(string connectionString)
+    {
+        Connection = new OracleConnection(connectionString);
+    }
+
+    IDbConnection Connection { get; }
+
+    public void Dispose()
+    {
+        Connection?.Dispose();
+    }
+
     public async Task EnsureTablesExist()
     {
         var result = await Connection.QueryAsync(@"
@@ -89,19 +94,32 @@ class Database : IDisposable
 
     public async Task UpdateRecord(JObject record)
     {
-        throw new NotImplementedException();
+        await Connection.ExecuteAsync(@"
+            update ULS_LIBINSIGHT_INST_RECORDS set
+                StartDate = :StartDate,
+                EnteredBy = :EnteredBy,
+                EventName = :EventName,
+                FacultySponsorName = :FacultySponsorName,
+                FacultySponsorEmail = :FacultySponsorEmail,
+                Department = :Department,
+                NumberOfParticipants = :NumberOfParticipants,
+                DurationOfEvent = :DurationOfEvent,
+                CoInstructorsOrganisation = :CoInstructorsOrganisation,
+                Notes = :Notes,
+                LocationOfEvent = :LocationOfEvent,
+                LocationOther = :LocationOther,
+                EventType = :EventType,
+                ClassNumber = :ClassNumber,
+                AdditionalMinutes = :AdditionalMinutes,
+                EDI = :EDI
+            where RecordId = :RecordId
+        ", ToParam(record));
+        // TODO: handling multiselect fields
     }
 
     public async Task InsertRecord(JObject record)
     {
-        var RecordId = (int?)record["_id"];
-        if (RecordId is null)
-            throw new Exception("Record is missing an Id.");
-        else if (await RecordExistsInDb(RecordId.Value))
-        {
-            // TODO: what to do when a record already exists in db. ignore or update?
-            return;
-        }
+        var recordId = (int)record["_id"];
         await Connection.ExecuteAsync(@"
             insert into ULS_LIBINSIGHT_INST_RECORDS
             (
@@ -143,83 +161,85 @@ class Database : IDisposable
                 :AdditionalMinutes,
                 :EDI
             )
-        ", new
-        {
-            RecordId,
-            StartDate = (DateTime?)record["_start_date"],
-            EnteredBy = (string?)record["_entered_by"],
-            EventName = CleanString(record["Event Name (if a class, search for course title and number  here) "]),
-            FacultySponsorName = CleanString(record["Faculty/ Sponsor Name"]),
-            FacultySponsorEmail = CleanString(record["Faculty/ Sponsor Email"]),
-            Department = ArraySingleElement(record["Department"]),
-            NumberOfParticipants = NumberOrNull(record["Number of Participants"]),
-            DurationOfEvent = NumberOrNull(record["Duration of Event"]),
-            CoInstructorsOrganisation = CleanString(record["Co-Instructor(s)/ Organisation"]),
-            Notes = CleanString(record["Notes"]),
-            LocationOfEvent = ArraySingleElement(record["Location of Event"]),
-            LocationOther = CleanString(record["Location - Other"]),
-            EventType = ArraySingleElement(record["Event Type"]),
-            ClassNumber = NumberOrNull(record["Class Number (5 digits) Available at  Class Search"]),
-            AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
-            EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
-        });
+        ", ToParam(record));
         if (record["Topics covered"] is JArray topics)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_TOPICS_COVERED (RecordId, TopicsCovered)
-                values (:RecordId, :TopicsCovered)
-            ", topics.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, TopicsCovered = x }));
+                values (:recordId, :TopicsCovered)
+            ", topics.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, TopicsCovered = x }));
         }
 
         if (record["Method of delivery"] is JArray methods)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY (RecordId, MethodOfDelivery)
-                values (:RecordId, :MethodOfDelivery)
+                values (:recordId, :MethodOfDelivery)
             ",
                 methods.Select(CleanString).Where(x => x is not null)
-                    .Select(x => new { RecordId, MethodOfDelivery = x }));
+                    .Select(x => new { recordId, MethodOfDelivery = x }));
         }
 
         if (record["Audience"] is JArray audience)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_AUDIENCE (RecordId, Audience)
-                values (:RecordId, :Audience)
-            ", audience.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, Audience = x }));
+                values (:recordId, :Audience)
+            ", audience.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, Audience = x }));
         }
 
         if (record["Skills taught"] is JArray skills)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_SKILLS_TAUGHT (RecordId, SkillsTaught)
-                values (:RecordId, :SkillsTaught)
-            ", skills.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, SkillsTaught = x }));
+                values (:recordId, :SkillsTaught)
+            ", skills.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, SkillsTaught = x }));
         }
 
         if (record["Tools discussed"] is JArray tools)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED (RecordId, ToolsDiscussed)
-                values (:RecordId, :ToolsDiscussed)
-            ", tools.Select(CleanString).Where(x => x is not null).Select(x => new { RecordId, ToolsDiscussed = x }));
+                values (:recordId, :ToolsDiscussed)
+            ", tools.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, ToolsDiscussed = x }));
         }
 
         if (record["Teaching Consultation Results"] is JArray consultation)
         {
             await Connection.ExecuteAsync(@"
                 insert into ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS (RecordId, TeachingConsultationResults)
-                values (:RecordId, :TeachingConsultationResults)
+                values (:recordId, :TeachingConsultationResults)
             ",
                 consultation.Select(CleanString).Where(x => x is not null)
-                    .Select(x => new { RecordId, TeachingConsultationResults = x }));
+                    .Select(x => new { recordId, TeachingConsultationResults = x }));
         }
     }
+
+    static object ToParam(JObject record) => new
+    {
+        RecordId = (int)record["_id"],
+        StartDate = (DateTime?)record["_start_date"],
+        EnteredBy = (string?)record["_entered_by"],
+        EventName = CleanString(record["Event Name (if a class, search for course title and number  here) "]),
+        FacultySponsorName = CleanString(record["Faculty/ Sponsor Name"]),
+        FacultySponsorEmail = CleanString(record["Faculty/ Sponsor Email"]),
+        Department = ArraySingleElement(record["Department"]),
+        NumberOfParticipants = NumberOrNull(record["Number of Participants"]),
+        DurationOfEvent = NumberOrNull(record["Duration of Event"]),
+        CoInstructorsOrganisation = CleanString(record["Co-Instructor(s)/ Organisation"]),
+        Notes = CleanString(record["Notes"]),
+        LocationOfEvent = ArraySingleElement(record["Location of Event"]),
+        LocationOther = CleanString(record["Location - Other"]),
+        EventType = ArraySingleElement(record["Event Type"]),
+        ClassNumber = NumberOrNull(record["Class Number (5 digits) Available at  Class Search"]),
+        AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
+        EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
+    };
 
     static string? CleanString(JToken? input)
     {
         var s = input?.ToString();
-        return string.IsNullOrWhiteSpace(s) ? null : s.Replace("'Äô", "'").Replace("’", "'");
+        return string.IsNullOrWhiteSpace(s) ? null : s.Trim().Replace("'Äô", "'").Replace("’", "'");
     }
 
     static object? NumberOrNull(JToken? input) =>
@@ -234,13 +254,8 @@ class Database : IDisposable
     {
         if (input is JArray array)
         {
-            return CleanString(array.Single().ToString());
+            return CleanString(array.Single());
         }
         else return null;
-    }
-
-    public void Dispose()
-    {
-        Connection?.Dispose();
     }
 }
