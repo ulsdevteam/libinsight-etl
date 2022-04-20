@@ -18,7 +18,19 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
         {
             try
             {
-                await db.InsertRecord(record);
+                var recordId = (int?)record["_id"];
+                if (recordId is null)
+                {
+                    Console.Error.WriteLine("Record is missing an Id.");
+                }
+                else if (await db.RecordExistsInDb(recordId.Value))
+                {
+                    await db.UpdateRecord(record);
+                }
+                else
+                {
+                    await db.InsertRecord(record);
+                }
             }
             catch (OracleException exception)
             {

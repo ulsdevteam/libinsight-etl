@@ -79,12 +79,17 @@ class Database : IDisposable
         }
     }
 
-    async Task<bool> RecordExistsInDb(int recordId)
+    public async Task<bool> RecordExistsInDb(int recordId)
     {
         var records = await Connection.QueryAsync(
             "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = :recordId",
             new { recordId });
         return records.Any();
+    }
+
+    public async Task UpdateRecord(JObject record)
+    {
+        throw new NotImplementedException();
     }
 
     public async Task InsertRecord(JObject record)
