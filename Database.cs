@@ -114,7 +114,40 @@ class Database : IDisposable
                 EDI = :EDI
             where RecordId = :RecordId
         ", ToParam(record));
-        // TODO: handling multiselect fields
+        var recordId = (int)record["_id"];
+        foreach (var field in MultiselectFields)
+        {
+            // Get the values already in the db, and compare with the values in the record to see if there is a difference.
+            var valuesInDb = (await Connection.QueryAsync<string>(@$"
+                select {field.ColumnName} from {field.TableName}
+                where RecordId = :recordId
+            ", new { recordId })).ToList();
+            var valuesInRecord = (record[field.FieldName] as JArray)?.Select(CleanString)?.Where(value => value is not null)?.ToList() ?? new List<string>();
+            // In the case that there is no change, both these lists will be empty.
+            var valuesToBeInserted = valuesInRecord.Except(valuesInDb).ToList();
+            var valuesToBeRemoved = valuesInDb.Except(valuesInRecord).ToList();
+            if (valuesToBeRemoved.Any())
+            {
+                // Dapper expands the list into individual parameters for each element, so this could fail if that goes over the oracle max parameters.
+                // That will probably never happen, though.
+                await Connection.ExecuteAsync(@$"
+                    delete from {field.TableName}
+                    where RecordId = :recordId
+                    and {field.ColumnName} in :valuesToBeRemoved
+                ", new { recordId, valuesToBeRemoved });
+            }
+            if (valuesToBeInserted.Any())
+            {
+                await Connection.ExecuteAsync(@$"
+                    insert into {field.TableName} (RecordId, {field.ColumnName})
+                    values (:RecordId, :{field.ColumnName})
+                ", valuesToBeInserted.Select(value => new Dictionary<string, object>
+                {
+                    ["RecordId"] = recordId,
+                    [field.ColumnName] = value
+                }));
+            }
+        }
     }
 
     public async Task InsertRecord(JObject record)
@@ -192,7 +225,7 @@ class Database : IDisposable
     {
         RecordId = (int)record["_id"],
         StartDate = (DateTime?)record["_start_date"],
-        EnteredBy = (string?)record["_entered_by"],
+        EnteredBy = (string)record["_entered_by"],
         EventName = CleanString(record["Event Name (if a class, search for course title and number  here) "]),
         FacultySponsorName = CleanString(record["Faculty/ Sponsor Name"]),
         FacultySponsorEmail = CleanString(record["Faculty/ Sponsor Email"]),
@@ -209,13 +242,13 @@ class Database : IDisposable
         EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
     };
 
-    static string? CleanString(JToken? input)
+    static string CleanString(JToken input)
     {
         var s = input?.ToString();
         return string.IsNullOrWhiteSpace(s) ? null : s.Trim().Replace("'Äô", "'").Replace("’", "'");
     }
 
-    static object? NumberOrNull(JToken? input) =>
+    static object NumberOrNull(JToken input) =>
         input?.Type switch
         {
             JTokenType.Integer => (int?)input,
@@ -223,7 +256,7 @@ class Database : IDisposable
             _ => null
         };
 
-    static string? ArraySingleElement(JToken? input)
+    static string ArraySingleElement(JToken input)
     {
         if (input is JArray array)
         {

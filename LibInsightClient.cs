@@ -39,7 +39,7 @@ class LibInsightClient
                 sort = "asc",
                 page
             }).GetJsonAsync<JObject>();
-            if ((string?)response["type"] == "error")
+            if ((string)response["type"] == "error")
             {
                 throw new Exception(response.ToString());
             }
