@@ -119,7 +119,6 @@ class Database : IDisposable
 
     public async Task InsertRecord(JObject record)
     {
-        var recordId = (int)record["_id"];
         await Connection.ExecuteAsync(@"
             insert into ULS_LIBINSIGHT_INST_RECORDS
             (
@@ -162,58 +161,32 @@ class Database : IDisposable
                 :EDI
             )
         ", ToParam(record));
-        if (record["Topics covered"] is JArray topics)
+        foreach (var field in MultiselectFields)
         {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_TOPICS_COVERED (RecordId, TopicsCovered)
-                values (:recordId, :TopicsCovered)
-            ", topics.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, TopicsCovered = x }));
-        }
-
-        if (record["Method of delivery"] is JArray methods)
-        {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY (RecordId, MethodOfDelivery)
-                values (:recordId, :MethodOfDelivery)
-            ",
-                methods.Select(CleanString).Where(x => x is not null)
-                    .Select(x => new { recordId, MethodOfDelivery = x }));
-        }
-
-        if (record["Audience"] is JArray audience)
-        {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_AUDIENCE (RecordId, Audience)
-                values (:recordId, :Audience)
-            ", audience.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, Audience = x }));
-        }
-
-        if (record["Skills taught"] is JArray skills)
-        {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_SKILLS_TAUGHT (RecordId, SkillsTaught)
-                values (:recordId, :SkillsTaught)
-            ", skills.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, SkillsTaught = x }));
-        }
-
-        if (record["Tools discussed"] is JArray tools)
-        {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED (RecordId, ToolsDiscussed)
-                values (:recordId, :ToolsDiscussed)
-            ", tools.Select(CleanString).Where(x => x is not null).Select(x => new { recordId, ToolsDiscussed = x }));
-        }
-
-        if (record["Teaching Consultation Results"] is JArray consultation)
-        {
-            await Connection.ExecuteAsync(@"
-                insert into ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS (RecordId, TeachingConsultationResults)
-                values (:recordId, :TeachingConsultationResults)
-            ",
-                consultation.Select(CleanString).Where(x => x is not null)
-                    .Select(x => new { recordId, TeachingConsultationResults = x }));
+            if (record[field.FieldName] is JArray array)
+            {
+                await Connection.ExecuteAsync(@$"
+                    insert into {field.TableName} (RecordId, {field.ColumnName})
+                    values (:RecordId, :{field.ColumnName})
+                ", array.Select(CleanString).Where(value => value is not null).Select(value => new Dictionary<string, object>
+                {
+                    ["RecordId"] = (int)record["_id"],
+                    [field.ColumnName] = value
+                }));
+            }
         }
     }
+
+    record MultiselectFieldData(string FieldName, string TableName, string ColumnName);
+
+    List<MultiselectFieldData> MultiselectFields = new List<MultiselectFieldData> {
+        new MultiselectFieldData("Topics covered", "ULS_LIBINSIGHT_INST_TOPICS_COVERED", "TopicsCovered"),
+        new MultiselectFieldData("Method of delivery", "ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY", "MethodOfDelivery"),
+        new MultiselectFieldData("Audience", "ULS_LIBINSIGHT_INST_AUDIENCE", "Audience"),
+        new MultiselectFieldData("Skills taught", "ULS_LIBINSIGHT_INST_SKILLS_TAUGHT", "SkillsTaught"),
+        new MultiselectFieldData("Tools discussed", "ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED", "ToolsDiscussed"),
+        new MultiselectFieldData("Teaching Consultation Results", "ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS", "TeachingConsultationResults"),
+    };
 
     static object ToParam(JObject record) => new
     {
