@@ -11,6 +11,7 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
     {
         var libInsightClient = new LibInsightClient();
         await libInsightClient.Authorize(Config["LIBINSIGHT_CLIENT_ID"], Config["LIBINSIGHT_CLIENT_SECRET"]);
+        // These numbers come from the API set up in the LibInsight interface.
         var records = await libInsightClient.GetRecords(29168, 19, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
         using var db = new Database(Config["ORACLE_CONNECTION_STRING"]);
         await db.EnsureTablesExist();
@@ -45,4 +46,5 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
     }
 });
 
+// Returns the first day of the previous July
 DateTime StartOfFiscalYear() => new DateTime(DateTime.Today.Month > 7 ? DateTime.Today.Year : DateTime.Today.Year - 1, 7, 1);

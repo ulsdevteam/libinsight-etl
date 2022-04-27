@@ -5,7 +5,71 @@ using Oracle.ManagedDataAccess.Client;
 
 class Database : IDisposable
 {
-    string TableCreationSql = @"
+    const string UpdateSql = @"
+        update ULS_LIBINSIGHT_INST_RECORDS set
+            StartDate = :StartDate,
+            EnteredBy = :EnteredBy,
+            EventName = :EventName,
+            FacultySponsorName = :FacultySponsorName,
+            FacultySponsorEmail = :FacultySponsorEmail,
+            Department = :Department,
+            NumberOfParticipants = :NumberOfParticipants,
+            DurationOfEvent = :DurationOfEvent,
+            CoInstructorsOrganisation = :CoInstructorsOrganisation,
+            Notes = :Notes,
+            LocationOfEvent = :LocationOfEvent,
+            LocationOther = :LocationOther,
+            EventType = :EventType,
+            ClassNumber = :ClassNumber,
+            AdditionalMinutes = :AdditionalMinutes,
+            EDI = :EDI
+        where RecordId = :RecordId
+    ";
+
+    const string InsertSql = @"
+        insert into ULS_LIBINSIGHT_INST_RECORDS
+        (
+            RecordId,
+            StartDate,
+            EnteredBy,
+            EventName,
+            FacultySponsorName,
+            FacultySponsorEmail,
+            Department,
+            NumberOfParticipants,
+            DurationOfEvent,
+            CoInstructorsOrganisation,
+            Notes,
+            LocationOfEvent,
+            LocationOther,
+            EventType,
+            ClassNumber,
+            AdditionalMinutes,
+            EDI
+        )
+        values
+        (
+            :RecordId,
+            :StartDate,
+            :EnteredBy,
+            :EventName,
+            :FacultySponsorName,
+            :FacultySponsorEmail,
+            :Department,
+            :NumberOfParticipants,
+            :DurationOfEvent,
+            :CoInstructorsOrganisation,
+            :Notes,
+            :LocationOfEvent,
+            :LocationOther,
+            :EventType,
+            :ClassNumber,
+            :AdditionalMinutes,
+            :EDI
+        )
+    ";
+
+    const string TableCreationSql = @"
         create table ULS_LIBINSIGHT_INST_RECORDS
         (
             RecordId number not null,
@@ -94,26 +158,7 @@ class Database : IDisposable
 
     public async Task UpdateRecord(JObject record)
     {
-        await Connection.ExecuteAsync(@"
-            update ULS_LIBINSIGHT_INST_RECORDS set
-                StartDate = :StartDate,
-                EnteredBy = :EnteredBy,
-                EventName = :EventName,
-                FacultySponsorName = :FacultySponsorName,
-                FacultySponsorEmail = :FacultySponsorEmail,
-                Department = :Department,
-                NumberOfParticipants = :NumberOfParticipants,
-                DurationOfEvent = :DurationOfEvent,
-                CoInstructorsOrganisation = :CoInstructorsOrganisation,
-                Notes = :Notes,
-                LocationOfEvent = :LocationOfEvent,
-                LocationOther = :LocationOther,
-                EventType = :EventType,
-                ClassNumber = :ClassNumber,
-                AdditionalMinutes = :AdditionalMinutes,
-                EDI = :EDI
-            where RecordId = :RecordId
-        ", ToParam(record));
+        await Connection.ExecuteAsync(UpdateSql, ToParam(record));
         var recordId = (int)record["_id"];
         foreach (var field in MultiselectFields)
         {
@@ -152,48 +197,7 @@ class Database : IDisposable
 
     public async Task InsertRecord(JObject record)
     {
-        await Connection.ExecuteAsync(@"
-            insert into ULS_LIBINSIGHT_INST_RECORDS
-            (
-                RecordId,
-                StartDate,
-                EnteredBy,
-                EventName,
-                FacultySponsorName,
-                FacultySponsorEmail,
-                Department,
-                NumberOfParticipants,
-                DurationOfEvent,
-                CoInstructorsOrganisation,
-                Notes,
-                LocationOfEvent,
-                LocationOther,
-                EventType,
-                ClassNumber,
-                AdditionalMinutes,
-                EDI
-            )
-            values
-            (
-                :RecordId,
-                :StartDate,
-                :EnteredBy,
-                :EventName,
-                :FacultySponsorName,
-                :FacultySponsorEmail,
-                :Department,
-                :NumberOfParticipants,
-                :DurationOfEvent,
-                :CoInstructorsOrganisation,
-                :Notes,
-                :LocationOfEvent,
-                :LocationOther,
-                :EventType,
-                :ClassNumber,
-                :AdditionalMinutes,
-                :EDI
-            )
-        ", ToParam(record));
+        await Connection.ExecuteAsync(InsertSql, ToParam(record));
         foreach (var field in MultiselectFields)
         {
             if (record[field.FieldName] is JArray array)
@@ -221,6 +225,7 @@ class Database : IDisposable
         new MultiselectFieldData("Teaching Consultation Results", "ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS", "TeachingConsultationResults"),
     };
 
+    // If the field definitions for the dataset are ever changed, they would need to be updated in ToParam and MultiselectFields.
     static object ToParam(JObject record) => new
     {
         RecordId = (int)record["_id"],
