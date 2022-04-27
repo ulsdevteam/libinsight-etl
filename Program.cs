@@ -45,4 +45,4 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
     }
 });
 
-DateTime StartOfFiscalYear() => new DateTime(DateTime.Today.Month >= 7 ? DateTime.Today.Year : DateTime.Today.Year - 1, 7, 1);
+DateTime StartOfFiscalYear() => new DateTime(DateTime.Today.Month > 7 ? DateTime.Today.Year : DateTime.Today.Year - 1, 7, 1);
