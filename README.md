@@ -1,11 +1,15 @@
 # LibInsight Instruction & Outreach Dataset ETL
 
+This console application pulls data from the Instruction and Outreach dataset in LibInsight, cleans it, and inserts it into the data warehouse.
+
+## Usage
+
     libinsight-instruction-outreach-etl 1.0.0
     Copyright (C) 2022 University of Pittsburgh
 
-    -f, --from    Required.
+    -f, --from    From date, defaults to beginning of FY (the previous July 1)
 
-    -t, --to
+    -t, --to      To date, defaults to today
 
     --help        Display this help screen.
 
