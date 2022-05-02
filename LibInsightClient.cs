@@ -1,16 +1,23 @@
-using Flurl;
 using Flurl.Http;
 using Newtonsoft.Json.Linq;
 
+/// <summary>
+/// Client class for getting dataset records via the LibInsight API.
+/// </summary>
 class LibInsightClient
 {
-    IFlurlClient Client { get; }
-
     public LibInsightClient()
     {
         Client = new FlurlClient("https://pitt.libinsight.com/v1.0");
     }
 
+    IFlurlClient Client { get; }
+
+    /// <summary>
+    /// Call the LibInsight OAuth endpoint to get an access token and store it.
+    /// </summary>
+    /// <param name="clientId">LibInsight Client Id</param>
+    /// <param name="clientSecret">LibInsight Client Secret</param>
     public async Task Authorize(string clientId, string clientSecret)
     {
         var tokenResponse = await Client
@@ -25,6 +32,18 @@ class LibInsightClient
         Client.WithHeader("Authorization", "Bearer " + json["access_token"]);
     }
 
+    /// <summary>
+    /// Call a LibInsight API and get dataset records.
+    /// </summary>
+    /// <remarks>
+    /// The API endpoint first needs to be set up on the LibInsight "Widgets and APIs" page, in the "Admin" section.
+    /// </remarks>
+    /// <param name="datasetId">Id of the dataset to retrieve.</param>
+    /// <param name="requestId">Id of the API on the LibInsight "Widgets and APIs" page.</param>
+    /// <param name="fromDate">First date to pull records from. Inclusive.</param>
+    /// <param name="toDate">Last date to pull records from. Inclusive.</param>
+    /// <returns>List of records as JSON objects.</returns>
+    /// <exception cref="Exception">Thrown if the API call returns an error response.</exception>
     public async Task<List<JObject>> GetRecords(int datasetId, int requestId, DateTime fromDate, DateTime toDate)
     {
         var records = new List<JObject>();

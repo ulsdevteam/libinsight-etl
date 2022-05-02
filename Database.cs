@@ -1,10 +1,42 @@
-using Newtonsoft.Json.Linq;
-using Dapper;
 using System.Data;
+using Dapper;
+using Newtonsoft.Json.Linq;
 using Oracle.ManagedDataAccess.Client;
 
 class Database : IDisposable
 {
+    /**
+     * Mapping a LibInsight dataset to SQL columns:
+     * `_id`, `_start_date` and `_entered_by` should always be present, so they are not nullable.
+     * Any fillable text input, drop-down list, or radio buttons are mapped as a nullable varchar.
+     * Any numeric inputs are mapped as a nullable number.
+     * Any multiselect field is represented as a separate table containing the id and a non-nullable varchar.
+     * See the `MultiselectFields` list for those definitions.
+     */
+    const string MainTableCreationSql = @"
+        create table ULS_LIBINSIGHT_INST_RECORDS
+        (
+            RecordId number not null,
+            StartDate date not null,
+            EnteredBy varchar2(4000) not null,
+            EventName varchar2(4000) null,
+            FacultySponsorName varchar2(4000) null,
+            FacultySponsorEmail varchar2(4000) null,
+            Department varchar2(4000) null,
+            NumberOfParticipants number null,
+            DurationOfEvent number null,
+            CoInstructorsOrganisation varchar2(4000) null,
+            Notes varchar2(4000) null,
+            LocationOfEvent varchar2(4000) null,
+            LocationOther varchar2(4000) null,
+            EventType varchar2(4000) null,
+            ClassNumber number null,
+            AdditionalMinutes number null,
+            EDI varchar2(4000) null,
+            primary key (RecordId)
+        );
+    ";
+
     const string UpdateSql = @"
         update ULS_LIBINSIGHT_INST_RECORDS set
             StartDate = :StartDate,
@@ -69,64 +101,51 @@ class Database : IDisposable
         )
     ";
 
-    const string TableCreationSql = @"
-        create table ULS_LIBINSIGHT_INST_RECORDS
-        (
-            RecordId number not null,
-            StartDate date not null,
-            EnteredBy varchar2(4000) not null,
-            EventName varchar2(4000) null,
-            FacultySponsorName varchar2(4000) null,
-            FacultySponsorEmail varchar2(4000) null,
-            Department varchar2(4000) null,
-            NumberOfParticipants number null,
-            DurationOfEvent number null,
-            CoInstructorsOrganisation varchar2(4000) null,
-            Notes varchar2(4000) null,
-            LocationOfEvent varchar2(4000) null,
-            LocationOther varchar2(4000) null,
-            EventType varchar2(4000) null,
-            ClassNumber number null,
-            AdditionalMinutes number null,
-            EDI varchar2(4000) null,
-            primary key (RecordId)
-        );
-        create table ULS_LIBINSIGHT_INST_TOPICS_COVERED
-        (
-            RecordId number not null,
-            TopicsCovered varchar2(4000) not null
-        );
-        create table ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY
-        (
-            RecordId number not null,
-            MethodOfDelivery varchar2(4000) not null
-        );
-        create table ULS_LIBINSIGHT_INST_AUDIENCE
-        (
-            RecordId number not null,
-            Audience varchar2(4000) not null
-        );
-        create table ULS_LIBINSIGHT_INST_SKILLS_TAUGHT
-        (
-            RecordId number not null,
-            SkillsTaught varchar2(4000) not null
-        );
-        create table ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED
-        (
-            RecordId number not null,
-            ToolsDiscussed varchar2(4000) not null
-        );
-        create table ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS
-        (
-            RecordId number not null,
-            TeachingConsultationResults varchar2(4000) not null
-        );
-    ";
-
     public Database(string connectionString)
     {
         Connection = new OracleConnection(connectionString);
     }
+
+    static List<MultiselectFieldData> MultiselectFields { get; } = new List<MultiselectFieldData>
+    {
+        new MultiselectFieldData("Topics covered", "ULS_LIBINSIGHT_INST_TOPICS_COVERED", "TopicsCovered", @"
+        create table ULS_LIBINSIGHT_INST_TOPICS_COVERED
+        (
+            RecordId number not null,
+            TopicsCovered varchar2(4000) not null
+        );"),
+        new MultiselectFieldData("Method of delivery", "ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY", "MethodOfDelivery", @"
+        create table ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY
+        (
+            RecordId number not null,
+            MethodOfDelivery varchar2(4000) not null
+        );"),
+        new MultiselectFieldData("Audience", "ULS_LIBINSIGHT_INST_AUDIENCE", "Audience", @"
+        create table ULS_LIBINSIGHT_INST_AUDIENCE
+        (
+            RecordId number not null,
+            Audience varchar2(4000) not null
+        );"),
+        new MultiselectFieldData("Skills taught", "ULS_LIBINSIGHT_INST_SKILLS_TAUGHT", "SkillsTaught", @"
+        create table ULS_LIBINSIGHT_INST_SKILLS_TAUGHT
+        (
+            RecordId number not null,
+            SkillsTaught varchar2(4000) not null
+        );"),
+        new MultiselectFieldData("Tools discussed", "ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED", "ToolsDiscussed", @"
+        create table ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED
+        (
+            RecordId number not null,
+            ToolsDiscussed varchar2(4000) not null
+        );"),
+        new MultiselectFieldData("Teaching Consultation Results", "ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS",
+            "TeachingConsultationResults", @"
+        create table ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS
+        (
+            RecordId number not null,
+            TeachingConsultationResults varchar2(4000) not null
+        );"),
+    };
 
     IDbConnection Connection { get; }
 
@@ -135,19 +154,32 @@ class Database : IDisposable
         Connection?.Dispose();
     }
 
+    /// <summary>
+    /// If any necessary tables do not exist in the database, create them.
+    /// </summary>
     public async Task EnsureTablesExist()
     {
-        var result = await Connection.QueryAsync(@"
+        var existingTables = new HashSet<string>(await Connection.QueryAsync<string>(@"
             select table_name
             from user_tables
-            where table_name = 'ULS_LIBINSIGHT_INST_RECORDS'
-        ");
-        if (!result.Any())
+            where table_name like 'ULS_LIBINSIGHT_INST_%'
+        "), StringComparer.OrdinalIgnoreCase);
+        if (!existingTables.Contains("ULS_LIBINSIGHT_INST_RECORDS"))
         {
-            await Connection.ExecuteAsync(TableCreationSql);
+            await Connection.ExecuteAsync(MainTableCreationSql);
         }
+        foreach (var field in MultiselectFields.Where(field => !existingTables.Contains(field.TableName)))
+        {
+            await Connection.ExecuteAsync(field.TableCreationSql);
+        }
+        
     }
 
+    /// <summary>
+    /// Check if a record already exists in the database.
+    /// </summary>
+    /// <param name="recordId">The record Id. "_id"</param>
+    /// <returns>Whether the record is in the database.</returns>
     public async Task<bool> RecordExistsInDb(int recordId)
     {
         var records = await Connection.QueryAsync(
@@ -156,6 +188,10 @@ class Database : IDisposable
         return records.Any();
     }
 
+    /// <summary>
+    /// Updates a record in the database with new data from the API.
+    /// </summary>
+    /// <param name="record">The Json object returned from the API.</param>
     public async Task UpdateRecord(JObject record)
     {
         await Connection.ExecuteAsync(UpdateSql, ToParam(record));
@@ -163,69 +199,59 @@ class Database : IDisposable
         foreach (var field in MultiselectFields)
         {
             // Get the values already in the db, and compare with the values in the record to see if there is a difference.
-            var valuesInDb = (await Connection.QueryAsync<string>(@$"
+            // Using a HashSet for the set operation and to specify case insensitivity
+            var valuesInDb = new HashSet<string>(await Connection.QueryAsync<string>(@$"
                 select {field.ColumnName} from {field.TableName}
                 where RecordId = :recordId
-            ", new { recordId })).ToList();
-            var valuesInRecord = (record[field.FieldName] as JArray)?.Select(CleanString)?.Where(value => value is not null)?.ToList() ?? new List<string>();
-            // In the case that there is no change, both these lists will be empty.
-            var valuesToBeInserted = valuesInRecord.Except(valuesInDb).ToList();
-            var valuesToBeRemoved = valuesInDb.Except(valuesInRecord).ToList();
-            if (valuesToBeRemoved.Any())
-            {
-                // Dapper expands the list into individual parameters for each element, so this could fail if that goes over the oracle max parameters.
-                // That will probably never happen, though.
-                await Connection.ExecuteAsync(@$"
+            ", new { recordId }), StringComparer.CurrentCultureIgnoreCase);
+            var valuesInRecord = JsonArrayToStrings(record[field.FieldName]).ToList();
+            if (valuesInDb.SetEquals(valuesInRecord)) 
+                continue;
+            await Connection.ExecuteAsync(@$"
                     delete from {field.TableName}
                     where RecordId = :recordId
-                    and {field.ColumnName} in :valuesToBeRemoved
-                ", new { recordId, valuesToBeRemoved });
-            }
-            if (valuesToBeInserted.Any())
-            {
-                await Connection.ExecuteAsync(@$"
+                ", new { recordId});
+            await Connection.ExecuteAsync(@$"
                     insert into {field.TableName} (RecordId, {field.ColumnName})
                     values (:RecordId, :{field.ColumnName})
-                ", valuesToBeInserted.Select(value => new Dictionary<string, object>
-                {
-                    ["RecordId"] = recordId,
-                    [field.ColumnName] = value
-                }));
-            }
+                ", valuesInRecord.Select(value => new Dictionary<string, object>
+            {
+                ["RecordId"] = recordId,
+                [field.ColumnName] = value
+            }));
         }
     }
 
+    /// <summary>
+    /// Insert a new record from the API into the database.
+    /// </summary>
+    /// <param name="record">The Json object returned from the API.</param>
     public async Task InsertRecord(JObject record)
     {
         await Connection.ExecuteAsync(InsertSql, ToParam(record));
         foreach (var field in MultiselectFields)
         {
-            if (record[field.FieldName] is JArray array)
+            await Connection.ExecuteAsync(@$"
+                insert into {field.TableName} (RecordId, {field.ColumnName})
+                values (:RecordId, :{field.ColumnName})
+            ", JsonArrayToStrings(record[field.FieldName]).Select(value =>
+            new Dictionary<string, object>
             {
-                await Connection.ExecuteAsync(@$"
-                    insert into {field.TableName} (RecordId, {field.ColumnName})
-                    values (:RecordId, :{field.ColumnName})
-                ", array.Select(CleanString).Where(value => value is not null).Select(value => new Dictionary<string, object>
-                {
-                    ["RecordId"] = (int)record["_id"],
-                    [field.ColumnName] = value
-                }));
-            }
+                ["RecordId"] = (int)record["_id"],
+                [field.ColumnName] = value
+            }));
         }
     }
 
-    record MultiselectFieldData(string FieldName, string TableName, string ColumnName);
-
-    List<MultiselectFieldData> MultiselectFields = new List<MultiselectFieldData> {
-        new MultiselectFieldData("Topics covered", "ULS_LIBINSIGHT_INST_TOPICS_COVERED", "TopicsCovered"),
-        new MultiselectFieldData("Method of delivery", "ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY", "MethodOfDelivery"),
-        new MultiselectFieldData("Audience", "ULS_LIBINSIGHT_INST_AUDIENCE", "Audience"),
-        new MultiselectFieldData("Skills taught", "ULS_LIBINSIGHT_INST_SKILLS_TAUGHT", "SkillsTaught"),
-        new MultiselectFieldData("Tools discussed", "ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED", "ToolsDiscussed"),
-        new MultiselectFieldData("Teaching Consultation Results", "ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS", "TeachingConsultationResults"),
-    };
-
-    // If the field definitions for the dataset are ever changed, they would need to be updated in ToParam and MultiselectFields.
+    /**
+     * The first three fields should always be present and are cast directly.
+     * Drop-down lists and radio buttons are returned by the API as either:
+     *   - an empty string, if nothing is selected
+     *   - an array containing one element
+     * `ArraySingleElement` handles both cases, converting empty strings to null or extracting the element from the array.
+     * Numeric inputs will also be an empty string if left blank, `NumberOrNull` will convert to null in that case.
+     * All other fields will be strings, and should be passed through `CleanString`. 
+     */
     static object ToParam(JObject record) => new
     {
         RecordId = (int)record["_id"],
@@ -247,12 +273,41 @@ class Database : IDisposable
         EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
     };
 
+    /// <summary>
+    /// Converts a Json element to a string and normalizes apostrophes.
+    /// </summary>
+    /// <param name="input">Any Json element.</param>
+    /// <returns>The string representation of the element, or null if it is null or a blank string.</returns>
     static string CleanString(JToken input)
     {
         var s = input?.ToString();
-        return string.IsNullOrWhiteSpace(s) ? null : s.Trim().Replace("'Äô", "'").Replace("’", "'");
+        if (string.IsNullOrWhiteSpace(s))
+            return null;
+        return s
+            .Trim()
+            .Replace("'Äô", "'")
+            .Replace("’", "'");
     }
 
+    /// <summary>
+    /// Converts a Json array to a sequence of strings using <see cref="CleanString"/>.
+    /// </summary>
+    /// <param name="input">Any Json element.</param>
+    /// <returns>
+    /// The cleaned, non-null strings in the given array, or an empty sequence if the input is not an array.
+    /// </returns>
+    static IEnumerable<string> JsonArrayToStrings(JToken input) =>
+        (input as JArray)?
+        .Select(CleanString)
+        .Where(value => value is not null) ?? Enumerable.Empty<string>();
+
+    /// <summary>
+    /// Converts a Json element to a number and boxes it.
+    /// </summary>
+    /// <param name="input">Any Json element.</param>
+    /// <returns>
+    /// If the Json element is a number, returns that number as a boxed int or double, otherwise returns null.
+    /// </returns>
     static object NumberOrNull(JToken input) =>
         input?.Type switch
         {
@@ -261,12 +316,29 @@ class Database : IDisposable
             _ => null
         };
 
+    /// <summary>
+    /// Returns the single element in a Json array, cleaned with <see cref="CleanString"/>.
+    /// </summary>
+    /// <param name="input">Any Json element.</param>
+    /// <returns>
+    /// If the input is an array, returns the cleaned single element of the array.
+    /// Returns null if the input is not an array or if the single element is null or blank.
+    /// </returns>
     static string ArraySingleElement(JToken input)
     {
         if (input is JArray array)
         {
-            return CleanString(array.Single());
+            return CleanString(array.SingleOrDefault());
         }
         else return null;
     }
+
+    /// <summary>
+    /// Encapsulates information about a multiselect field on the record.
+    /// </summary>
+    /// <param name="FieldName">The field name in the Json representation returned by the API.</param>
+    /// <param name="TableName">The name of the SQL table this field's data is stored in.</param>
+    /// <param name="ColumnName">The name of the column containing the data in that table.</param>
+    /// <param name="TableCreationSql">The SQL command used to create that table.</param>
+    record MultiselectFieldData(string FieldName, string TableName, string ColumnName, string TableCreationSql);
 }

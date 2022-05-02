@@ -2,6 +2,7 @@
 
 This console application pulls data from the Instruction and Outreach dataset in LibInsight, cleans it, and inserts it into the data warehouse.
 
+This will run once at the beginning of each month. When it runs in July and the default from date is used, it will pull data going back to July of the previous year.
 ## Usage
 
     libinsight-instruction-outreach-etl 1.0.0
