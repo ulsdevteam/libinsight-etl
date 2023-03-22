@@ -308,13 +308,15 @@ class Database : IDisposable
     /// <returns>
     /// If the Json element is a number, returns that number as a boxed int or double, otherwise returns null.
     /// </returns>
-    static object NumberOrNull(JToken input) =>
-        input?.Type switch
-        {
-            JTokenType.Integer => (int?)input,
-            JTokenType.Float => (double?)input,
-            _ => null
-        };
+    static object NumberOrNull(JToken input) {
+        if (input?.Type == JTokenType.Integer) {
+            return (int?) input;
+        } else if (input?.Type == JTokenType.Float) {
+            return (double?) input;
+        } else if (input?.Type == JTokenType.String) {
+            return (int.TryParse(input.ToString(), out var value)) ? value : null;
+        } else return null;
+    }
 
     /// <summary>
     /// Returns the single element in a Json array, cleaned with <see cref="CleanString"/>.
