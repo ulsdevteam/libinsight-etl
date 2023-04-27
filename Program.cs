@@ -11,31 +11,33 @@ await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(a
     {
         var libInsightClient = new LibInsightClient();
         await libInsightClient.Authorize(config["LIBINSIGHT_CLIENT_ID"], config["LIBINSIGHT_CLIENT_SECRET"]);
-        // These numbers come from the API set up in the LibInsight interface.
-        var records = await libInsightClient.GetRecords(29168, 19, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
-        using var db = new Database(config["ORACLE_CONNECTION_STRING"]);
-        await db.EnsureTablesExist();
-        foreach (var record in records)
-        {
-            try
+        using var conn = new OracleConnection(config["ORACLE_CONNECTION_STRING"]);
+        var datasets = new Dataset[] {new InstructionOutreachDataset(conn), new HeadCountsDataset(conn)};
+        foreach (var db in datasets) {
+            await db.EnsureTablesExist();
+            var records = await libInsightClient.GetRecords(db.DatasetId, db.RequestId, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
+            foreach (var record in records)
             {
-                var recordId = (int?)record["_id"];
-                if (recordId is null)
+                try
                 {
-                    Console.Error.WriteLine("Record is missing an Id.");
+                    var recordId = (int?)record["_id"];
+                    if (recordId is null)
+                    {
+                        Console.Error.WriteLine("Record is missing an Id.");
+                    }
+                    else if (await db.RecordExistsInDb(recordId.Value))
+                    {
+                        await db.UpdateRecord(record);
+                    }
+                    else
+                    {
+                        await db.InsertRecord(record);
+                    }
                 }
-                else if (await db.RecordExistsInDb(recordId.Value))
+                catch (OracleException exception)
                 {
-                    await db.UpdateRecord(record);
+                    Console.Error.WriteLine(exception);
                 }
-                else
-                {
-                    await db.InsertRecord(record);
-                }
-            }
-            catch (OracleException exception)
-            {
-                Console.Error.WriteLine(exception);
             }
         }
     }

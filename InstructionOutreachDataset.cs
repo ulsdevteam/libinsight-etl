@@ -1,10 +1,12 @@
 using System.Data;
 using Dapper;
 using Newtonsoft.Json.Linq;
-using Oracle.ManagedDataAccess.Client;
 
-class Database : IDisposable
+class InstructionOutreachDataset : Dataset
 {
+    public override int DatasetId => 29168;
+    public override int RequestId => 19;
+
     /**
      * Mapping a LibInsight dataset to SQL columns:
      * `_id`, `_start_date` and `_entered_by` should always be present, so they are not nullable.
@@ -101,10 +103,7 @@ class Database : IDisposable
         )
     ";
 
-    public Database(string connectionString)
-    {
-        Connection = new OracleConnection(connectionString);
-    }
+    public InstructionOutreachDataset(IDbConnection connection) : base(connection) {}
 
     static List<MultiselectFieldData> MultiselectFields { get; } = new List<MultiselectFieldData>
     {
@@ -147,17 +146,10 @@ class Database : IDisposable
         );"),
     };
 
-    IDbConnection Connection { get; }
-
-    public void Dispose()
-    {
-        Connection?.Dispose();
-    }
-
     /// <summary>
     /// If any necessary tables do not exist in the database, create them.
     /// </summary>
-    public async Task EnsureTablesExist()
+    public override async Task EnsureTablesExist()
     {
         var existingTables = new HashSet<string>(await Connection.QueryAsync<string>(@"
             select table_name
@@ -180,7 +172,7 @@ class Database : IDisposable
     /// </summary>
     /// <param name="recordId">The record Id. "_id"</param>
     /// <returns>Whether the record is in the database.</returns>
-    public async Task<bool> RecordExistsInDb(int recordId)
+    public override async Task<bool> RecordExistsInDb(int recordId)
     {
         var records = await Connection.QueryAsync(
             "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = :recordId",
@@ -192,7 +184,7 @@ class Database : IDisposable
     /// Updates a record in the database with new data from the API.
     /// </summary>
     /// <param name="record">The Json object returned from the API.</param>
-    public async Task UpdateRecord(JObject record)
+    public override async Task UpdateRecord(JObject record)
     {
         await Connection.ExecuteAsync(UpdateSql, ToParam(record));
         var recordId = (int)record["_id"];
@@ -210,7 +202,7 @@ class Database : IDisposable
             await Connection.ExecuteAsync(@$"
                     delete from {field.TableName}
                     where RecordId = :recordId
-                ", new { recordId});
+                ", new { recordId });
             await Connection.ExecuteAsync(@$"
                     insert into {field.TableName} (RecordId, {field.ColumnName})
                     values (:RecordId, :{field.ColumnName})
@@ -226,7 +218,7 @@ class Database : IDisposable
     /// Insert a new record from the API into the database.
     /// </summary>
     /// <param name="record">The Json object returned from the API.</param>
-    public async Task InsertRecord(JObject record)
+    public override async Task InsertRecord(JObject record)
     {
         await Connection.ExecuteAsync(InsertSql, ToParam(record));
         foreach (var field in MultiselectFields)
@@ -272,68 +264,6 @@ class Database : IDisposable
         AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
         EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
     };
-
-    /// <summary>
-    /// Converts a Json element to a string and normalizes apostrophes.
-    /// </summary>
-    /// <param name="input">Any Json element.</param>
-    /// <returns>The string representation of the element, or null if it is null or a blank string.</returns>
-    static string CleanString(JToken input)
-    {
-        var s = input?.ToString();
-        if (string.IsNullOrWhiteSpace(s))
-            return null;
-        return s
-            .Trim()
-            .Replace("'Äô", "'")
-            .Replace("’", "'");
-    }
-
-    /// <summary>
-    /// Converts a Json array to a sequence of strings using <see cref="CleanString"/>.
-    /// </summary>
-    /// <param name="input">Any Json element.</param>
-    /// <returns>
-    /// The cleaned, non-null strings in the given array, or an empty sequence if the input is not an array.
-    /// </returns>
-    static IEnumerable<string> JsonArrayToStrings(JToken input) =>
-        (input as JArray)?
-        .Select(CleanString)
-        .Where(value => value is not null) ?? Enumerable.Empty<string>();
-
-    /// <summary>
-    /// Converts a Json element to a number and boxes it.
-    /// </summary>
-    /// <param name="input">Any Json element.</param>
-    /// <returns>
-    /// If the Json element is a number, returns that number as a boxed int or double, otherwise returns null.
-    /// </returns>
-    static object NumberOrNull(JToken input) {
-        if (input?.Type == JTokenType.Integer) {
-            return (int?) input;
-        } else if (input?.Type == JTokenType.Float) {
-            return (double?) input;
-        } else if (input?.Type == JTokenType.String) {
-            return (int.TryParse(input.ToString(), out var value)) ? value : null;
-        } else return null;
-    }
-
-    /// <summary>
-    /// Returns the single element in a Json array, cleaned with <see cref="CleanString"/>.
-    /// </summary>
-    /// <param name="input">Any Json element.</param>
-    /// <returns>
-    /// If the input is an array, returns the cleaned single element of the array.
-    /// Returns null if the input is not an array or if the single element is null or blank.
-    /// </returns>
-    static string ArraySingleElement(JToken input)
-    {
-        if (input is JArray array)
-        {
-            return CleanString(array.SingleOrDefault());
-        }
-        else return null;
-    }
 
     /// <summary>
     /// Encapsulates information about a multiselect field on the record.
