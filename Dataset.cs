@@ -62,6 +62,14 @@ abstract class Dataset
     }
 
     /// <summary>
+    /// Uses DateTime.TryParse to attempt to parse the input, returning null on a failure.
+    /// </summary>
+    protected static DateTime? DateTimeOrNull(JToken input)
+    {
+        return DateTime.TryParse(input.ToString(), out var result) ? result : null;
+    }
+
+    /// <summary>
     /// Returns the single element in a Json array, cleaned with <see cref="CleanString"/>.
     /// </summary>
     /// <param name="input">Any Json element.</param>

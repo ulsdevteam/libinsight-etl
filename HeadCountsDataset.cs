@@ -90,7 +90,7 @@ class HeadCountsDataset : Dataset
         Floor = ArraySingleElement(record["Floor"]),
         TimeOfHeadCount = ArraySingleElement(record["Time of Head Count"]),
         NumberOfPatrons = NumberOrNull(record["Number of Patrons"]),
-        DeskInteractionDateTime = (DateTime?)record["Date and Time for Desk Interactions"],
+        DeskInteractionDateTime = DateTimeOrNull(record["Date and Time for Desk Interactions"]),
         TransactionsInHour = NumberOrNull(record["Number of transactions in the hour"])
     };
 }
