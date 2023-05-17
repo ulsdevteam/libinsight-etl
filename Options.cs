@@ -7,4 +7,12 @@ class Options
     public DateTime? FromDate { get; set; }
     [Option('t', "to", Required = false, HelpText = "To date, defaults to today")]
     public DateTime? ToDate { get; set; }
+    [Value(0)]
+    public DatasetId DatasetId { get; set; }
+}
+
+enum DatasetId
+{
+    InstructionOutreach = 29168,
+    HillHeadCounts = 31294,
 }

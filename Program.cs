@@ -5,39 +5,47 @@ using Oracle.ManagedDataAccess.Client;
 
 DotEnv.Load();
 IConfiguration config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
-await CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsedAsync(async options =>
+var parser = new Parser(settings =>
+{
+    settings.AutoHelp = true;
+    settings.CaseInsensitiveEnumValues = true;
+    settings.HelpWriter = Console.Error;
+});
+await parser.ParseArguments<Options>(args).WithParsedAsync(async options =>
 {
     try
     {
         var libInsightClient = new LibInsightClient();
         await libInsightClient.Authorize(config["LIBINSIGHT_CLIENT_ID"], config["LIBINSIGHT_CLIENT_SECRET"]);
         using var conn = new OracleConnection(config["ORACLE_CONNECTION_STRING"]);
-        var datasets = new Dataset[] {new InstructionOutreachDataset(conn), new HeadCountsDataset(conn)};
-        foreach (var db in datasets) {
-            await db.EnsureTablesExist();
-            var records = await libInsightClient.GetRecords(db.DatasetId, db.RequestId, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
-            foreach (var record in records)
+        Dataset dataset = options.DatasetId switch {
+            DatasetId.InstructionOutreach => new InstructionOutreachDataset(conn),
+            DatasetId.HillHeadCounts => new HeadCountsDataset(conn),
+            _ => throw new Exception("Dataset not recognized"),
+        };
+        await dataset.EnsureTablesExist();
+        var records = await libInsightClient.GetRecords(dataset.DatasetId, dataset.RequestId, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
+        foreach (var record in records)
+        {
+            try
             {
-                try
+                var recordId = (int?)record["_id"];
+                if (recordId is null)
                 {
-                    var recordId = (int?)record["_id"];
-                    if (recordId is null)
-                    {
-                        Console.Error.WriteLine("Record is missing an Id.");
-                    }
-                    else if (await db.RecordExistsInDb(recordId.Value))
-                    {
-                        await db.UpdateRecord(record);
-                    }
-                    else
-                    {
-                        await db.InsertRecord(record);
-                    }
+                    Console.Error.WriteLine("Record is missing an Id.");
                 }
-                catch (OracleException exception)
+                else if (await dataset.RecordExistsInDb(recordId.Value))
                 {
-                    Console.Error.WriteLine(exception);
+                    await dataset.UpdateRecord(record);
                 }
+                else
+                {
+                    await dataset.InsertRecord(record);
+                }
+            }
+            catch (OracleException exception)
+            {
+                Console.Error.WriteLine(exception);
             }
         }
     }
