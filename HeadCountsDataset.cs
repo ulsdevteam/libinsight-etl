@@ -17,18 +17,21 @@ class HeadCountsDataset : Dataset
         foreach (var (weekStart, weekEnd) in DateIntervals(fromDate, toDate, 7))
         {
             var data = await LibInsightClient.GetGateCountData(DatasetId, RequestId, weekStart, weekEnd, "hourly");
-            foreach (var (timestamp, counts) in data["hourly"] as JObject)
+            if (data["hourly"] is JObject hourlyData)
             {
-                var recordTime = DateTime.ParseExact(timestamp, "yyyy-MM-dd htt", CultureInfo.InvariantCulture);
-                foreach (var (locationId, count) in counts as JObject)
+                foreach (var (timestamp, counts) in hourlyData)
                 {
-                    records.Add(new
+                    var recordTime = DateTime.ParseExact(timestamp, "yyyy-MM-dd htt", CultureInfo.InvariantCulture);
+                    foreach (var (locationId, count) in counts as JObject)
                     {
-                        recordTime,
-                        locationId = int.Parse(locationId),
-                        location = data["libraries"][locationId].ToString(),
-                        transactionCount = (int) count
-                    });
+                        records.Add(new
+                        {
+                            recordTime,
+                            locationId = int.Parse(locationId),
+                            location = data["libraries"][locationId].ToString(),
+                            transactionCount = (int) count
+                        });
+                    }
                 }
             }
         }
@@ -90,7 +93,7 @@ class HeadCountsDataset : Dataset
                 where
                     RecordTime = :recordTime and
                     LocationId = :locationId;
-            end
+            end;
         ", records);
     }
 }
