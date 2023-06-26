@@ -1,15 +1,53 @@
 using System.Data;
+using System.Globalization;
 using Dapper;
 using Newtonsoft.Json.Linq;
 
 class HeadCountsDataset : Dataset
 {
-    public HeadCountsDataset(IDbConnection connection) : base(connection) { }
+    public HeadCountsDataset(IDbConnection connection, LibInsightClient client) : base(connection, client) { }
 
-    public override int DatasetId => 31294;
-    public override int RequestId => 20;
+    public override int DatasetId => 31377;
+    public override int RequestId => 21;
 
-    public override async Task EnsureTablesExist()
+    public override async Task ProcessDateRange(DateTime fromDate, DateTime toDate)
+    {
+        await EnsureTablesExist();
+        var records = new List<object>();
+        foreach (var (weekStart, weekEnd) in DateIntervals(fromDate, toDate, 7))
+        {
+            var data = await LibInsightClient.GetGateCountData(DatasetId, RequestId, weekStart, weekEnd, "hourly");
+            foreach (var (timestamp, counts) in data["hourly"] as JObject)
+            {
+                var recordTime = DateTime.ParseExact(timestamp, "yyyy-MM-dd htt", CultureInfo.InvariantCulture);
+                foreach (var (locationId, count) in counts as JObject)
+                {
+                    records.Add(new
+                    {
+                        recordTime,
+                        locationId = int.Parse(locationId),
+                        location = data["libraries"][locationId].ToString(),
+                        transactionCount = (int) count
+                    });
+                }
+            }
+        }
+        await UpsertRecords(records);
+    }
+
+    static IEnumerable<(DateTime, DateTime)> DateIntervals(DateTime start, DateTime end, int intervalLengthInDays)
+    {
+        var currentStart = start;
+        DateTime nextStart;
+        while ((nextStart = currentStart.AddDays(intervalLengthInDays)) < end)
+        {
+            yield return (currentStart, nextStart);
+            currentStart = nextStart;
+        }
+        yield return (currentStart, end);
+    }
+
+    async Task EnsureTablesExist()
     {
         var exists = (await Connection.QueryAsync(@"
             select table_name from user_tables
@@ -19,78 +57,40 @@ class HeadCountsDataset : Dataset
         await Connection.ExecuteAsync(@"
             create table ULS_LIBINSIGHT_HILL_HEADCOUNTS
             (
-                RecordId number not null,
-                StartDate date not null,
-                EnteredBy varchar2(4000) not null,
-                Floor varchar2(4000) null,
-                TimeOfHeadCount varchar2(4000) null,
-                NumberOfPatrons number null,
-                DeskInteractionDateTime date null,
-                TransactionsInHour number null,
-                primary key (RecordId)
+                RecordTime date not null,
+                LocationId number not null,
+                Location varchar2(4000) not null,
+                TransactionCount number not null,
+                primary key (RecordTime, LocationId)
             );
         ");
     }
 
-    public override async Task InsertRecord(JObject record)
+    async Task UpsertRecords(IEnumerable<object> records)
     {
         await Connection.ExecuteAsync(@"
-            insert into ULS_LIBINSIGHT_HILL_HEADCOUNTS
-            (
-                RecordId,
-                StartDate,
-                EnteredBy,
-                Floor,
-                TimeOfHeadCount,
-                NumberOfPatrons,
-                DeskInteractionDateTime,
-                TransactionsInHour
-            )
-            values
-            (
-                :RecordId,
-                :StartDate,
-                :EnteredBy,
-                :Floor,
-                :TimeOfHeadCount,
-                :NumberOfPatrons,
-                :DeskInteractionDateTime,
-                :TransactionsInHour
-            )
-        ", ToParam(record));
+            begin
+                insert into ULS_LIBINSIGHT_HILL_HEADCOUNTS
+                (
+                    RecordTime,
+                    LocationId,
+                    Location,
+                    TransactionCount
+                )
+                values
+                (
+                    :recordTime,
+                    :locationId,
+                    :location,
+                    :transactionCount
+                );
+            exception when dup_val_on_index then
+                update ULS_LIBINSIGHT_HILL_HEADCOUNTS set
+                    TransactionCount = :transactionCount
+                where
+                    RecordTime = :recordTime and
+                    LocationId = :locationId;
+            end
+        ", records);
     }
-
-    public override async Task<bool> RecordExistsInDb(int recordId)
-    {
-        return (await Connection.QueryAsync(@"
-            select RecordId from ULS_LIBINSIGHT_HILL_HEADCOUNTS
-            where RecordId = :recordId
-        ", new { recordId })).Any();
-    }
-
-    public override async Task UpdateRecord(JObject record)
-    {
-        await Connection.ExecuteAsync(@"
-            update ULS_LIBINSIGHT_HILL_HEADCOUNTS set
-                StartDate = :StartDate,
-                EnteredBy = :EnteredBy,
-                Floor = :Floor,
-                TimeOfHeadCount = :TimeOfHeadCount,
-                NumberOfPatrons = :NumberOfPatrons,
-                DeskInteractionDateTime = :DeskInteractionDateTime,
-                TransactionsInHour = :TransactionsInHour
-            where RecordId = :RecordId
-        ", ToParam(record));
-    }
-
-    static object ToParam(JObject record) => new {
-        RecordId = (int)record["_id"],
-        StartDate = (DateTime?)record["_start_date"],
-        EnteredBy = (string)record["_entered_by"],
-        Floor = ArraySingleElement(record["Floor"]),
-        TimeOfHeadCount = ArraySingleElement(record["Time of Head Count"]),
-        NumberOfPatrons = NumberOrNull(record["Number of Patrons"]),
-        DeskInteractionDateTime = DateTimeOrNull(record["Date and Time for Desk Interactions"]),
-        TransactionsInHour = NumberOrNull(record["Number of transactions in the hour"])
-    };
 }

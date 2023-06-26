@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Dapper;
 using Newtonsoft.Json.Linq;
 
@@ -103,7 +104,7 @@ class InstructionOutreachDataset : Dataset
         )
     ";
 
-    public InstructionOutreachDataset(IDbConnection connection) : base(connection) {}
+    public InstructionOutreachDataset(IDbConnection connection, LibInsightClient client) : base(connection, client) {}
 
     static List<MultiselectFieldData> MultiselectFields { get; } = new List<MultiselectFieldData>
     {
@@ -146,10 +147,39 @@ class InstructionOutreachDataset : Dataset
         );"),
     };
 
+    public override async Task ProcessDateRange(DateTime fromDate, DateTime toDate)
+    {
+        await EnsureTablesExist();
+        var records = await LibInsightClient.GetCustomDatasetRecords(DatasetId, RequestId, fromDate, toDate);
+        foreach (var record in records)
+        {
+            try
+            {
+                var recordId = (int?)record["_id"];
+                if (recordId is null)
+                {
+                    Console.Error.WriteLine("Record is missing an Id.");
+                }
+                else if (await RecordExistsInDb(recordId.Value))
+                {
+                    await UpdateRecord(record);
+                }
+                else
+                {
+                    await InsertRecord(record);
+                }
+            }
+            catch (DbException exception)
+            {
+                Console.Error.WriteLine(exception);
+            }
+        }
+    }
+
     /// <summary>
     /// If any necessary tables do not exist in the database, create them.
     /// </summary>
-    public override async Task EnsureTablesExist()
+    async Task EnsureTablesExist()
     {
         var existingTables = new HashSet<string>(await Connection.QueryAsync<string>(@"
             select table_name
@@ -172,7 +202,7 @@ class InstructionOutreachDataset : Dataset
     /// </summary>
     /// <param name="recordId">The record Id. "_id"</param>
     /// <returns>Whether the record is in the database.</returns>
-    public override async Task<bool> RecordExistsInDb(int recordId)
+    async Task<bool> RecordExistsInDb(int recordId)
     {
         var records = await Connection.QueryAsync(
             "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = :recordId",
@@ -184,7 +214,7 @@ class InstructionOutreachDataset : Dataset
     /// Updates a record in the database with new data from the API.
     /// </summary>
     /// <param name="record">The Json object returned from the API.</param>
-    public override async Task UpdateRecord(JObject record)
+    async Task UpdateRecord(JObject record)
     {
         await Connection.ExecuteAsync(UpdateSql, ToParam(record));
         var recordId = (int)record["_id"];
@@ -218,7 +248,7 @@ class InstructionOutreachDataset : Dataset
     /// Insert a new record from the API into the database.
     /// </summary>
     /// <param name="record">The Json object returned from the API.</param>
-    public override async Task InsertRecord(JObject record)
+    async Task InsertRecord(JObject record)
     {
         await Connection.ExecuteAsync(InsertSql, ToParam(record));
         foreach (var field in MultiselectFields)

@@ -3,18 +3,17 @@ using Newtonsoft.Json.Linq;
 
 abstract class Dataset 
 {
-    protected Dataset(IDbConnection connection) {
+    protected Dataset(IDbConnection connection, LibInsightClient libInsightClient) {
         Connection = connection;
+        LibInsightClient = libInsightClient;
     }
 
     protected IDbConnection Connection { get; }
+    protected LibInsightClient LibInsightClient { get; }
     public abstract int DatasetId { get; }
     public abstract int RequestId { get; }
 
-    public abstract Task EnsureTablesExist();
-    public abstract Task<bool> RecordExistsInDb(int recordId);
-    public abstract Task UpdateRecord(JObject record);
-    public abstract Task InsertRecord(JObject record);
+    public abstract Task ProcessDateRange(DateTime fromDate, DateTime toDate);
     
     /// <summary>
     /// Converts a Json element to a string and normalizes apostrophes.

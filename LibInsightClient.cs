@@ -44,7 +44,7 @@ class LibInsightClient
     /// <param name="toDate">Last date to pull records from. Inclusive.</param>
     /// <returns>List of records as JSON objects.</returns>
     /// <exception cref="Exception">Thrown if the API call returns an error response.</exception>
-    public async Task<List<JObject>> GetRecords(int datasetId, int requestId, DateTime fromDate, DateTime toDate)
+    public async Task<List<JObject>> GetCustomDatasetRecords(int datasetId, int requestId, DateTime fromDate, DateTime toDate)
     {
         var records = new List<JObject>();
         for (var page = 1; ; ++page)
@@ -64,9 +64,27 @@ class LibInsightClient
             }
             var payload = response["payload"];
             records.AddRange(payload["records"].Values<JObject>());
-            if ((int?) payload["displayed_page"] == (int?) payload["total_pages"]) {
+            if ((int?)payload["displayed_page"] == (int?)payload["total_pages"])
+            {
                 return records;
             }
         }
+    }
+
+    public async Task<JObject> GetGateCountData(int datasetId, int requestId, DateTime fromDate, DateTime toDate, string aggregate)
+    {
+        var response = await Client.Request("gate-count", datasetId, "overview").SetQueryParams(new
+        {
+            request_id = requestId,
+            from = fromDate.ToString("yyyy-MM-dd"),
+            to = toDate.ToString("yyyy-MM-dd"),
+            aggregate
+        }
+        ).GetJsonAsync<JObject>();
+        if ((string)response["type"] == "error")
+        {
+            throw new Exception(response.ToString());
+        }
+        return response["payload"] as JObject;
     }
 }

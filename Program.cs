@@ -19,35 +19,11 @@ await parser.ParseArguments<Options>(args).WithParsedAsync(async options =>
         await libInsightClient.Authorize(config["LIBINSIGHT_CLIENT_ID"], config["LIBINSIGHT_CLIENT_SECRET"]);
         using var conn = new OracleConnection(config["ORACLE_CONNECTION_STRING"]);
         Dataset dataset = options.DatasetId switch {
-            DatasetId.InstructionOutreach => new InstructionOutreachDataset(conn),
-            DatasetId.HillHeadCounts => new HeadCountsDataset(conn),
+            DatasetId.InstructionOutreach => new InstructionOutreachDataset(conn, libInsightClient),
+            DatasetId.HillHeadCounts => new HeadCountsDataset(conn, libInsightClient),
             _ => throw new Exception("Dataset not recognized"),
         };
-        await dataset.EnsureTablesExist();
-        var records = await libInsightClient.GetRecords(dataset.DatasetId, dataset.RequestId, options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
-        foreach (var record in records)
-        {
-            try
-            {
-                var recordId = (int?)record["_id"];
-                if (recordId is null)
-                {
-                    Console.Error.WriteLine("Record is missing an Id.");
-                }
-                else if (await dataset.RecordExistsInDb(recordId.Value))
-                {
-                    await dataset.UpdateRecord(record);
-                }
-                else
-                {
-                    await dataset.InsertRecord(record);
-                }
-            }
-            catch (OracleException exception)
-            {
-                Console.Error.WriteLine(exception);
-            }
-        }
+        await dataset.ProcessDateRange(options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
     }
     catch (Exception exception)
     {
