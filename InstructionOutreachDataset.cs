@@ -279,7 +279,7 @@ class InstructionOutreachDataset : Dataset
         RecordId = (int)record["_id"],
         StartDate = (DateTime?)record["_start_date"],
         EnteredBy = (string)record["_entered_by"],
-        EventName = CleanString(record["Event Name (if a class, search for course title and number  here) "]),
+        EventName = CleanString(record["Event Name (if a class, search for course title and number)"]),
         FacultySponsorName = CleanString(record["Faculty/ Sponsor Name"]),
         FacultySponsorEmail = CleanString(record["Faculty/ Sponsor Email"]),
         Department = ArraySingleElement(record["Department"]),
@@ -290,7 +290,7 @@ class InstructionOutreachDataset : Dataset
         LocationOfEvent = ArraySingleElement(record["Location of Event"]),
         LocationOther = CleanString(record["Location - Other"]),
         EventType = ArraySingleElement(record["Event Type"]),
-        ClassNumber = NumberOrNull(record["Class Number (5 digits) Available at  Class Search"]),
+        ClassNumber = NumberOrNull(record["Class Number (5 digits)"]),
         AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
         EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
     };
