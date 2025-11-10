@@ -71,11 +71,10 @@ class LibInsightClient
         }
     }
 
-    public async Task<JObject> GetGateCountData(int datasetId, int requestId, DateTime fromDate, DateTime toDate, string aggregate)
+    public async Task<JObject> GetGateCountData(int datasetId, DateTime fromDate, DateTime toDate, string aggregate)
     {
         var response = await Client.Request("gate-count", datasetId, "overview").SetQueryParams(new
         {
-            request_id = requestId,
             from = fromDate.ToString("yyyy-MM-dd"),
             to = toDate.ToString("yyyy-MM-dd"),
             aggregate

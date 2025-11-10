@@ -16,7 +16,7 @@ class HeadCountsDataset : Dataset
         var records = new List<object>();
         foreach (var (weekStart, weekEnd) in DateIntervals(fromDate, toDate, 7))
         {
-            var data = await LibInsightClient.GetGateCountData(DatasetId, RequestId, weekStart, weekEnd, "hourly");
+            var data = await LibInsightClient.GetGateCountData(DatasetId, weekStart, weekEnd, "hourly");
             if (data["hourly"] is JObject hourlyData)
             {
                 foreach (var (timestamp, counts) in hourlyData)
