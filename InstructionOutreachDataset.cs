@@ -17,52 +17,52 @@ class InstructionOutreachDataset : Dataset
      * See the `MultiselectFields` list for those definitions.
      */
     const string MainTableCreationSql = @"
-        create table ULS_LIBINSIGHT_INST_RECORDS
+        create table if not exists LIBINSIGHT_INST_RECORDS
         (
             RecordId number not null,
             StartDate date not null,
-            EnteredBy varchar2(4000) not null,
-            EventName varchar2(4000) null,
-            FacultySponsorName varchar2(4000) null,
-            FacultySponsorEmail varchar2(4000) null,
-            Department varchar2(4000) null,
+            EnteredBy varchar not null,
+            EventName varchar null,
+            FacultySponsorName varchar null,
+            FacultySponsorEmail varchar null,
+            Department varchar null,
             NumberOfParticipants number null,
             DurationOfEvent number null,
-            CoInstructorsOrganisation varchar2(4000) null,
-            Notes varchar2(4000) null,
-            LocationOfEvent varchar2(4000) null,
-            LocationOther varchar2(4000) null,
-            EventType varchar2(4000) null,
+            CoInstructorsOrganisation varchar null,
+            Notes varchar null,
+            LocationOfEvent varchar null,
+            LocationOther varchar null,
+            EventType varchar null,
             ClassNumber number null,
             AdditionalMinutes number null,
-            EDI varchar2(4000) null,
+            EDI varchar null,
             primary key (RecordId)
         );
     ";
 
     const string UpdateSql = @"
-        update ULS_LIBINSIGHT_INST_RECORDS set
-            StartDate = :StartDate,
-            EnteredBy = :EnteredBy,
-            EventName = :EventName,
-            FacultySponsorName = :FacultySponsorName,
-            FacultySponsorEmail = :FacultySponsorEmail,
-            Department = :Department,
-            NumberOfParticipants = :NumberOfParticipants,
-            DurationOfEvent = :DurationOfEvent,
-            CoInstructorsOrganisation = :CoInstructorsOrganisation,
-            Notes = :Notes,
-            LocationOfEvent = :LocationOfEvent,
-            LocationOther = :LocationOther,
-            EventType = :EventType,
-            ClassNumber = :ClassNumber,
-            AdditionalMinutes = :AdditionalMinutes,
-            EDI = :EDI
-        where RecordId = :RecordId
+        update LIBINSIGHT_INST_RECORDS set
+            StartDate = @StartDate,
+            EnteredBy = @EnteredBy,
+            EventName = @EventName,
+            FacultySponsorName = @FacultySponsorName,
+            FacultySponsorEmail = @FacultySponsorEmail,
+            Department = @Department,
+            NumberOfParticipants = @NumberOfParticipants,
+            DurationOfEvent = @DurationOfEvent,
+            CoInstructorsOrganisation = @CoInstructorsOrganisation,
+            Notes = @Notes,
+            LocationOfEvent = @LocationOfEvent,
+            LocationOther = @LocationOther,
+            EventType = @EventType,
+            ClassNumber = @ClassNumber,
+            AdditionalMinutes = @AdditionalMinutes,
+            EDI = @EDI
+        where RecordId = @RecordId
     ";
 
     const string InsertSql = @"
-        insert into ULS_LIBINSIGHT_INST_RECORDS
+        insert into LIBINSIGHT_INST_RECORDS
         (
             RecordId,
             StartDate,
@@ -84,23 +84,23 @@ class InstructionOutreachDataset : Dataset
         )
         values
         (
-            :RecordId,
-            :StartDate,
-            :EnteredBy,
-            :EventName,
-            :FacultySponsorName,
-            :FacultySponsorEmail,
-            :Department,
-            :NumberOfParticipants,
-            :DurationOfEvent,
-            :CoInstructorsOrganisation,
-            :Notes,
-            :LocationOfEvent,
-            :LocationOther,
-            :EventType,
-            :ClassNumber,
-            :AdditionalMinutes,
-            :EDI
+            @RecordId,
+            @StartDate,
+            @EnteredBy,
+            @EventName,
+            @FacultySponsorName,
+            @FacultySponsorEmail,
+            @Department,
+            @NumberOfParticipants,
+            @DurationOfEvent,
+            @CoInstructorsOrganisation,
+            @Notes,
+            @LocationOfEvent,
+            @LocationOther,
+            @EventType,
+            @ClassNumber,
+            @AdditionalMinutes,
+            @EDI
         )
     ";
 
@@ -108,42 +108,42 @@ class InstructionOutreachDataset : Dataset
 
     static List<MultiselectFieldData> MultiselectFields { get; } = new List<MultiselectFieldData>
     {
-        new MultiselectFieldData("Topics covered", "ULS_LIBINSIGHT_INST_TOPICS_COVERED", "TopicsCovered", @"
-        create table ULS_LIBINSIGHT_INST_TOPICS_COVERED
+        new MultiselectFieldData("Topics covered", "LIBINSIGHT_INST_TOPICS_COVERED", "TopicsCovered", @"
+        create table if not exists LIBINSIGHT_INST_TOPICS_COVERED
         (
             RecordId number not null,
-            TopicsCovered varchar2(4000) not null
+            TopicsCovered varchar not null
         );"),
-        new MultiselectFieldData("Method of delivery", "ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY", "MethodOfDelivery", @"
-        create table ULS_LIBINSIGHT_INST_METHOD_OF_DELIVERY
+        new MultiselectFieldData("Method of delivery", "LIBINSIGHT_INST_METHOD_OF_DELIVERY", "MethodOfDelivery", @"
+        create table if not exists LIBINSIGHT_INST_METHOD_OF_DELIVERY
         (
             RecordId number not null,
-            MethodOfDelivery varchar2(4000) not null
+            MethodOfDelivery varchar not null
         );"),
-        new MultiselectFieldData("Audience", "ULS_LIBINSIGHT_INST_AUDIENCE", "Audience", @"
-        create table ULS_LIBINSIGHT_INST_AUDIENCE
+        new MultiselectFieldData("Audience", "LIBINSIGHT_INST_AUDIENCE", "Audience", @"
+        create table if not exists LIBINSIGHT_INST_AUDIENCE
         (
             RecordId number not null,
-            Audience varchar2(4000) not null
+            Audience varchar not null
         );"),
-        new MultiselectFieldData("Skills taught", "ULS_LIBINSIGHT_INST_SKILLS_TAUGHT", "SkillsTaught", @"
-        create table ULS_LIBINSIGHT_INST_SKILLS_TAUGHT
+        new MultiselectFieldData("Skills taught", "LIBINSIGHT_INST_SKILLS_TAUGHT", "SkillsTaught", @"
+        create table if not exists LIBINSIGHT_INST_SKILLS_TAUGHT
         (
             RecordId number not null,
-            SkillsTaught varchar2(4000) not null
+            SkillsTaught varchar not null
         );"),
-        new MultiselectFieldData("Tools discussed", "ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED", "ToolsDiscussed", @"
-        create table ULS_LIBINSIGHT_INST_TOOLS_DISCUSSED
+        new MultiselectFieldData("Tools discussed", "LIBINSIGHT_INST_TOOLS_DISCUSSED", "ToolsDiscussed", @"
+        create table if not exists LIBINSIGHT_INST_TOOLS_DISCUSSED
         (
             RecordId number not null,
-            ToolsDiscussed varchar2(4000) not null
+            ToolsDiscussed varchar not null
         );"),
-        new MultiselectFieldData("Teaching Consultation Results", "ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS",
+        new MultiselectFieldData("Teaching Consultation Results", "LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS",
             "TeachingConsultationResults", @"
-        create table ULS_LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS
+        create table if not exists LIBINSIGHT_INST_TEACHING_CONSULTATION_RESULTS
         (
             RecordId number not null,
-            TeachingConsultationResults varchar2(4000) not null
+            TeachingConsultationResults varchar not null
         );"),
     };
 
@@ -181,16 +181,9 @@ class InstructionOutreachDataset : Dataset
     /// </summary>
     async Task EnsureTablesExist()
     {
-        var existingTables = new HashSet<string>(await Connection.QueryAsync<string>(@"
-            select table_name
-            from user_tables
-            where table_name like 'ULS_LIBINSIGHT_INST_%'
-        "), StringComparer.OrdinalIgnoreCase);
-        if (!existingTables.Contains("ULS_LIBINSIGHT_INST_RECORDS"))
-        {
-            await Connection.ExecuteAsync(MainTableCreationSql);
-        }
-        foreach (var field in MultiselectFields.Where(field => !existingTables.Contains(field.TableName)))
+        await Connection.ExecuteAsync(MainTableCreationSql);
+        
+        foreach (var field in MultiselectFields)
         {
             await Connection.ExecuteAsync(field.TableCreationSql);
         }
@@ -205,7 +198,7 @@ class InstructionOutreachDataset : Dataset
     async Task<bool> RecordExistsInDb(int recordId)
     {
         var records = await Connection.QueryAsync(
-            "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = :recordId",
+            "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = @recordId",
             new { recordId });
         return records.Any();
     }
@@ -224,18 +217,18 @@ class InstructionOutreachDataset : Dataset
             // Using a HashSet for the set operation and to specify case insensitivity
             var valuesInDb = new HashSet<string>(await Connection.QueryAsync<string>(@$"
                 select {field.ColumnName} from {field.TableName}
-                where RecordId = :recordId
+                where RecordId = @recordId
             ", new { recordId }), StringComparer.CurrentCultureIgnoreCase);
             var valuesInRecord = JsonArrayToStrings(record[field.FieldName]).ToList();
             if (valuesInDb.SetEquals(valuesInRecord)) 
                 continue;
             await Connection.ExecuteAsync(@$"
                     delete from {field.TableName}
-                    where RecordId = :recordId
+                    where RecordId = @recordId
                 ", new { recordId });
             await Connection.ExecuteAsync(@$"
                     insert into {field.TableName} (RecordId, {field.ColumnName})
-                    values (:RecordId, :{field.ColumnName})
+                    values (@RecordId, @{field.ColumnName})
                 ", valuesInRecord.Select(value => new Dictionary<string, object>
             {
                 ["RecordId"] = recordId,
@@ -255,7 +248,7 @@ class InstructionOutreachDataset : Dataset
         {
             await Connection.ExecuteAsync(@$"
                 insert into {field.TableName} (RecordId, {field.ColumnName})
-                values (:RecordId, :{field.ColumnName})
+                values (@RecordId, @{field.ColumnName})
             ", JsonArrayToStrings(record[field.FieldName]).Select(value =>
             new Dictionary<string, object>
             {

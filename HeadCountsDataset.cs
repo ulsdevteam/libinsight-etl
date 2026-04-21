@@ -52,17 +52,12 @@ class HeadCountsDataset : Dataset
 
     async Task EnsureTablesExist()
     {
-        var exists = (await Connection.QueryAsync(@"
-            select table_name from user_tables
-            where table_name = 'ULS_LIBINSIGHT_HILL_HEADCOUNTS'
-        ")).Any();
-        if (exists) return;
         await Connection.ExecuteAsync(@"
-            create table ULS_LIBINSIGHT_HILL_HEADCOUNTS
+            create table if not exists LIBINSIGHT_HILL_HEADCOUNTS
             (
-                RecordTime date not null,
+                RecordTime timestamp not null,
                 LocationId number not null,
-                Location varchar2(4000) not null,
+                Location varchar not null,
                 TransactionCount number not null,
                 primary key (RecordTime, LocationId)
             );
@@ -72,28 +67,16 @@ class HeadCountsDataset : Dataset
     async Task UpsertRecords(IEnumerable<object> records)
     {
         await Connection.ExecuteAsync(@"
-            begin
-                insert into ULS_LIBINSIGHT_HILL_HEADCOUNTS
-                (
-                    RecordTime,
-                    LocationId,
-                    Location,
-                    TransactionCount
-                )
-                values
-                (
-                    :recordTime,
-                    :locationId,
-                    :location,
-                    :transactionCount
-                );
-            exception when dup_val_on_index then
-                update ULS_LIBINSIGHT_HILL_HEADCOUNTS set
-                    TransactionCount = :transactionCount
-                where
-                    RecordTime = :recordTime and
-                    LocationId = :locationId;
-            end;
+            MERGE INTO LIBINSIGHT_HILL_HEADCOUNTS AS TARGET
+            USING (
+                VALUES (@recordTime, @locationId, @location, @transactionCount)
+            ) AS SOURCE (RecordTime, LocationId, Location, TransactionCount)
+            ON SOURCE.RecordTime = TARGET.RecordTime AND SOURCE.LocationId = TARGET.LocationId
+            WHEN MATCHED THEN
+                UPDATE SET TransactionCount = SOURCE.TransactionCount
+            WHEN NOT MATCHED THEN
+                INSERT (RecordTime, LocationId, Location, TransactionCount)
+                VALUES (SOURCE.RecordTime, SOURCE.LocationId, SOURCE.Location, SOURCE.TransactionCount);
         ", records);
     }
 }
