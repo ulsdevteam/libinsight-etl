@@ -1,7 +1,7 @@
 ﻿using dotenv.net;
 using CommandLine;
 using Microsoft.Extensions.Configuration;
-using Oracle.ManagedDataAccess.Client;
+using Snowflake.Data.Client;
 
 DotEnv.Load();
 IConfiguration config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -17,7 +17,7 @@ await parser.ParseArguments<Options>(args).WithParsedAsync(async options =>
     {
         var libInsightClient = new LibInsightClient();
         await libInsightClient.Authorize(config["LIBINSIGHT_CLIENT_ID"], config["LIBINSIGHT_CLIENT_SECRET"]);
-        using var conn = new OracleConnection(config["ORACLE_CONNECTION_STRING"]);
+        using var conn = new SnowflakeDbConnection(config["SNOWFLAKE_CONNECTION_STRING"]);
         Dataset dataset = options.DatasetId switch {
             DatasetId.InstructionOutreach => new InstructionOutreachDataset(conn, libInsightClient),
             DatasetId.HillHeadCounts => new HeadCountsDataset(conn, libInsightClient),
