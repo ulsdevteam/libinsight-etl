@@ -11,14 +11,21 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
-    <PackageReference Include="Dapper" Version="2.1.72" />
+    <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="dotenv.net" Version="4.0.2" />
     <PackageReference Include="Flurl" Version="4.0.0" />
-    <PackageReference Include="Flurl.Http" Version="4.0.0" />
+    <PackageReference Include="Flurl.Http" Version="4.0.1" />
+    <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.7" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Snowflake.Data" Version="5.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+      <None Update=".env">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
   </ItemGroup>
 
 </Project>

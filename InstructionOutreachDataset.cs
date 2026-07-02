@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using Snowflake.Data.Client;
 using Dapper;
 using Newtonsoft.Json.Linq;
 
@@ -42,29 +43,28 @@ class InstructionOutreachDataset : Dataset
 
     const string UpdateSql = @"
         update LIBINSIGHT_INST_RECORDS set
-            StartDate = @StartDate,
-            EnteredBy = @EnteredBy,
-            EventName = @EventName,
-            FacultySponsorName = @FacultySponsorName,
-            FacultySponsorEmail = @FacultySponsorEmail,
-            Department = @Department,
-            NumberOfParticipants = @NumberOfParticipants,
-            DurationOfEvent = @DurationOfEvent,
-            CoInstructorsOrganisation = @CoInstructorsOrganisation,
-            Notes = @Notes,
-            LocationOfEvent = @LocationOfEvent,
-            LocationOther = @LocationOther,
-            EventType = @EventType,
-            ClassNumber = @ClassNumber,
-            AdditionalMinutes = @AdditionalMinutes,
-            EDI = @EDI
-        where RecordId = @RecordId
+            StartDate = ?,
+            EnteredBy = ?,
+            EventName = ?,
+            FacultySponsorName = ?,
+            FacultySponsorEmail = ?,
+            Department = ?,
+            NumberOfParticipants = ?,
+            DurationOfEvent = ?,
+            CoInstructorsOrganisation = ?,
+            Notes = ?,
+            LocationOfEvent = ?,
+            LocationOther = ?,
+            EventType = ?,
+            ClassNumber = ?,
+            AdditionalMinutes = ?,
+            EDI = ?
+        where RecordId = ?
     ";
 
     const string InsertSql = @"
         insert into LIBINSIGHT_INST_RECORDS
         (
-            RecordId,
             StartDate,
             EnteredBy,
             EventName,
@@ -80,31 +80,32 @@ class InstructionOutreachDataset : Dataset
             EventType,
             ClassNumber,
             AdditionalMinutes,
-            EDI
+            EDI,
+            RecordId
         )
         values
         (
-            @RecordId,
-            @StartDate,
-            @EnteredBy,
-            @EventName,
-            @FacultySponsorName,
-            @FacultySponsorEmail,
-            @Department,
-            @NumberOfParticipants,
-            @DurationOfEvent,
-            @CoInstructorsOrganisation,
-            @Notes,
-            @LocationOfEvent,
-            @LocationOther,
-            @EventType,
-            @ClassNumber,
-            @AdditionalMinutes,
-            @EDI
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
         )
     ";
 
-    public InstructionOutreachDataset(IDbConnection connection, LibInsightClient client) : base(connection, client) {}
+    public InstructionOutreachDataset(SnowflakeDbConnection connection, LibInsightClient client) : base(connection, client) {}
 
     static List<MultiselectFieldData> MultiselectFields { get; } = new List<MultiselectFieldData>
     {
@@ -197,9 +198,11 @@ class InstructionOutreachDataset : Dataset
     /// <returns>Whether the record is in the database.</returns>
     async Task<bool> RecordExistsInDb(int recordId)
     {
+        var p = new DynamicParameters();
+        p.Add("1", recordId);
         var records = await Connection.QueryAsync(
-            "select RecordId from ULS_LIBINSIGHT_INST_RECORDS where RecordId = @recordId",
-            new { recordId });
+            "select RECORDID from ULS_LIBINSIGHT_INST_RECORDS where RECORDID = ?",
+            p);
         return records.Any();
     }
 
@@ -209,30 +212,34 @@ class InstructionOutreachDataset : Dataset
     /// <param name="record">The Json object returned from the API.</param>
     async Task UpdateRecord(JObject record)
     {
-        await Connection.ExecuteAsync(UpdateSql, ToParam(record));
+        await Connection.ExecuteAsync(UpdateSql, ToDynamicParam(record));
         var recordId = (int)record["_id"];
         foreach (var field in MultiselectFields)
         {
             // Get the values already in the db, and compare with the values in the record to see if there is a difference.
             // Using a HashSet for the set operation and to specify case insensitivity
+            var p = new DynamicParameters();
+            p.Add("1", recordId);
             var valuesInDb = new HashSet<string>(await Connection.QueryAsync<string>(@$"
                 select {field.ColumnName} from {field.TableName}
-                where RecordId = @recordId
-            ", new { recordId }), StringComparer.CurrentCultureIgnoreCase);
+                where RecordId = ?
+            ", p), StringComparer.CurrentCultureIgnoreCase);
             var valuesInRecord = JsonArrayToStrings(record[field.FieldName]).ToList();
             if (valuesInDb.SetEquals(valuesInRecord)) 
                 continue;
             await Connection.ExecuteAsync(@$"
                     delete from {field.TableName}
-                    where RecordId = @recordId
-                ", new { recordId });
+                    where RecordId = ?
+                ", p);
             await Connection.ExecuteAsync(@$"
                     insert into {field.TableName} (RecordId, {field.ColumnName})
-                    values (@RecordId, @{field.ColumnName})
-                ", valuesInRecord.Select(value => new Dictionary<string, object>
+                    values (?, ?)
+                ", valuesInRecord.Select(value => 
             {
-                ["RecordId"] = recordId,
-                [field.ColumnName] = value
+                var p = new DynamicParameters();
+                p.Add("1", recordId);
+                p.Add("2", value);
+                return p;
             }));
         }
     }
@@ -243,17 +250,18 @@ class InstructionOutreachDataset : Dataset
     /// <param name="record">The Json object returned from the API.</param>
     async Task InsertRecord(JObject record)
     {
-        await Connection.ExecuteAsync(InsertSql, ToParam(record));
+        await Connection.ExecuteAsync(InsertSql, ToDynamicParam(record));
         foreach (var field in MultiselectFields)
         {
             await Connection.ExecuteAsync(@$"
                 insert into {field.TableName} (RecordId, {field.ColumnName})
-                values (@RecordId, @{field.ColumnName})
+                values (?, ?)
             ", JsonArrayToStrings(record[field.FieldName]).Select(value =>
-            new Dictionary<string, object>
             {
-                ["RecordId"] = (int)record["_id"],
-                [field.ColumnName] = value
+                var p = new DynamicParameters();
+                p.Add("1", (int)record["_id"]);
+                p.Add("2", value);
+                return p;
             }));
         }
     }
@@ -287,6 +295,29 @@ class InstructionOutreachDataset : Dataset
         AdditionalMinutes = NumberOrNull(record["Additional minutes of prep/follow-up"]),
         EDI = ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]),
     };
+
+    static DynamicParameters ToDynamicParam(JObject record)
+    {
+        var p = new DynamicParameters();
+        p.Add("1", (DateTime?)record["_start_date"]);
+        p.Add("2", (string)record["_entered_by"]);
+        p.Add("3", CleanString(record["Event Name (if a class, search for course title and number)"]));
+        p.Add("4", CleanString(record["Faculty/ Sponsor Name"]));
+        p.Add("5", CleanString(record["Faculty/ Sponsor Email"]));
+        p.Add("6", ArraySingleElement(record["Department"]));
+        p.Add("7", NumberOrNull(record["Number of Participants"]));
+        p.Add("8", NumberOrNull(record["Duration of Event"]));
+        p.Add("9", CleanString(record["Co-Instructor(s)/ Organisation"]));
+        p.Add("10", CleanString(record["Notes"]));
+        p.Add("11", ArraySingleElement(record["Location of Event"]));
+        p.Add("12", CleanString(record["Location - Other"]));
+        p.Add("13", ArraySingleElement(record["Event Type"]));
+        p.Add("14", NumberOrNull(record["Class Number (5 digits)"]));
+        p.Add("15", NumberOrNull(record["Additional minutes of prep/follow-up"]));
+        p.Add("16", ArraySingleElement(record["Equity, Diversity, Inclusion (EDI)"]));
+        p.Add("17", (int)record["_id"]);
+        return p;
+    }
 
     /// <summary>
     /// Encapsulates information about a multiselect field on the record.

@@ -1,11 +1,12 @@
 using System.Data;
 using System.Globalization;
+using Snowflake.Data.Client;
 using Dapper;
 using Newtonsoft.Json.Linq;
 
 class HeadCountsDataset : Dataset
 {
-    public HeadCountsDataset(IDbConnection connection, LibInsightClient client) : base(connection, client) { }
+    public HeadCountsDataset(SnowflakeDbConnection connection, LibInsightClient client) : base(connection, client) { }
 
     public override int DatasetId => 31377;
     public override int RequestId => 21;
