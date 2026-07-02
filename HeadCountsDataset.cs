@@ -14,7 +14,7 @@ class HeadCountsDataset : Dataset
     public override async Task ProcessDateRange(DateTime fromDate, DateTime toDate)
     {
         await EnsureTablesExist();
-        var records = new List<object>();
+        var records = new List<DynamicParameters>();
         foreach (var (weekStart, weekEnd) in DateIntervals(fromDate, toDate, 7))
         {
             var data = await LibInsightClient.GetGateCountData(DatasetId, weekStart, weekEnd, "hourly");
@@ -25,13 +25,12 @@ class HeadCountsDataset : Dataset
                     var recordTime = DateTime.ParseExact(timestamp, "yyyy-MM-dd htt", CultureInfo.InvariantCulture);
                     foreach (var (locationId, count) in counts as JObject)
                     {
-                        records.Add(new
-                        {
-                            recordTime,
-                            locationId = int.Parse(locationId),
-                            location = data["libraries"][locationId].ToString(),
-                            transactionCount = (int) count
-                        });
+                        var p = new DynamicParameters();
+                        p.Add("1", recordTime);
+                        p.Add("2", int.Parse(locationId));
+                        p.Add("3", data["libraries"][locationId].ToString());
+                        p.Add("4", (int) count);
+                        records.Add(p);
                     }
                 }
             }
@@ -65,12 +64,12 @@ class HeadCountsDataset : Dataset
         ");
     }
 
-    async Task UpsertRecords(IEnumerable<object> records)
+    async Task UpsertRecords(IEnumerable<DynamicParameters> records)
     {
         await Connection.ExecuteAsync(@"
             MERGE INTO LIBINSIGHT_HILL_HEADCOUNTS AS TARGET
             USING (
-                VALUES (@recordTime, @locationId, @location, @transactionCount)
+                VALUES (?, ?, ?, ?)
             ) AS SOURCE (RecordTime, LocationId, Location, TransactionCount)
             ON SOURCE.RecordTime = TARGET.RecordTime AND SOURCE.LocationId = TARGET.LocationId
             WHEN MATCHED THEN
