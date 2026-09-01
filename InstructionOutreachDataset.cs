@@ -21,7 +21,7 @@ class InstructionOutreachDataset : Dataset
         create table if not exists LIBINSIGHT_INST_RECORDS
         (
             RecordId number not null,
-            StartDate date not null,
+            StartDate datetime not null,
             EnteredBy varchar not null,
             EventName varchar null,
             FacultySponsorName varchar null,

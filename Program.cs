@@ -20,7 +20,7 @@ await parser.ParseArguments<Options>(args).WithParsedAsync(async options =>
         using var conn = new SnowflakeDbConnection(config["SNOWFLAKE_CONNECTION_STRING"]);
         Dataset dataset = options.DatasetId switch {
             DatasetId.InstructionOutreach => new InstructionOutreachDataset(conn, libInsightClient),
-            DatasetId.HillHeadCounts => new HeadCountsDataset(conn, libInsightClient),
+            DatasetId.HillHeadCounts => throw new Exception("Dataset is obsolete"),
             _ => throw new Exception("Dataset not recognized"),
         };
         await dataset.ProcessDateRange(options.FromDate ?? StartOfFiscalYear(), options.ToDate ?? DateTime.Today);
