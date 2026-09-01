@@ -1,14 +1,15 @@
 using System.Data;
+using Snowflake.Data.Client;
 using Newtonsoft.Json.Linq;
 
 abstract class Dataset 
 {
-    protected Dataset(IDbConnection connection, LibInsightClient libInsightClient) {
+    protected Dataset(SnowflakeDbConnection connection, LibInsightClient libInsightClient) {
         Connection = connection;
         LibInsightClient = libInsightClient;
     }
 
-    protected IDbConnection Connection { get; }
+    protected SnowflakeDbConnection Connection { get; }
     protected LibInsightClient LibInsightClient { get; }
     public abstract int DatasetId { get; }
     public abstract int RequestId { get; }

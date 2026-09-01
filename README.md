@@ -6,13 +6,11 @@ This will run once at the beginning of each month. When it runs in July and the 
 
 ## Usage
 
-    libinsight-etl 2.0.0
-    Copyright (C) 2023 University of Pittsburgh
+    libinsight-etl 3.0.0
+    Copyright (C) 2026 University of Pittsburgh
     USAGE:
     Update Instruction & Outreach dataset:
     libinsight-etl InstructionOutreach
-    Update Hillman Head Counts dataset:
-    libinsight-etl HillHeadCounts
 
     -f, --from          From date, defaults to beginning of FY (the previous July 1)
 

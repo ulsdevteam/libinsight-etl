@@ -1,11 +1,12 @@
 using System.Data;
 using System.Globalization;
+using Snowflake.Data.Client;
 using Dapper;
 using Newtonsoft.Json.Linq;
 
 class HeadCountsDataset : Dataset
 {
-    public HeadCountsDataset(IDbConnection connection, LibInsightClient client) : base(connection, client) { }
+    public HeadCountsDataset(SnowflakeDbConnection connection, LibInsightClient client) : base(connection, client) { }
 
     public override int DatasetId => 31377;
     public override int RequestId => 21;
@@ -13,7 +14,7 @@ class HeadCountsDataset : Dataset
     public override async Task ProcessDateRange(DateTime fromDate, DateTime toDate)
     {
         await EnsureTablesExist();
-        var records = new List<object>();
+        var records = new List<DynamicParameters>();
         foreach (var (weekStart, weekEnd) in DateIntervals(fromDate, toDate, 7))
         {
             var data = await LibInsightClient.GetGateCountData(DatasetId, weekStart, weekEnd, "hourly");
@@ -24,13 +25,12 @@ class HeadCountsDataset : Dataset
                     var recordTime = DateTime.ParseExact(timestamp, "yyyy-MM-dd htt", CultureInfo.InvariantCulture);
                     foreach (var (locationId, count) in counts as JObject)
                     {
-                        records.Add(new
-                        {
-                            recordTime,
-                            locationId = int.Parse(locationId),
-                            location = data["libraries"][locationId].ToString(),
-                            transactionCount = (int) count
-                        });
+                        var p = new DynamicParameters();
+                        p.Add("1", recordTime);
+                        p.Add("2", int.Parse(locationId));
+                        p.Add("3", data["libraries"][locationId].ToString());
+                        p.Add("4", (int) count);
+                        records.Add(p);
                     }
                 }
             }
@@ -52,48 +52,31 @@ class HeadCountsDataset : Dataset
 
     async Task EnsureTablesExist()
     {
-        var exists = (await Connection.QueryAsync(@"
-            select table_name from user_tables
-            where table_name = 'ULS_LIBINSIGHT_HILL_HEADCOUNTS'
-        ")).Any();
-        if (exists) return;
         await Connection.ExecuteAsync(@"
-            create table ULS_LIBINSIGHT_HILL_HEADCOUNTS
+            create table if not exists LIBINSIGHT_HILL_HEADCOUNTS
             (
-                RecordTime date not null,
+                RecordTime timestamp not null,
                 LocationId number not null,
-                Location varchar2(4000) not null,
+                Location varchar not null,
                 TransactionCount number not null,
                 primary key (RecordTime, LocationId)
             );
         ");
     }
 
-    async Task UpsertRecords(IEnumerable<object> records)
+    async Task UpsertRecords(IEnumerable<DynamicParameters> records)
     {
         await Connection.ExecuteAsync(@"
-            begin
-                insert into ULS_LIBINSIGHT_HILL_HEADCOUNTS
-                (
-                    RecordTime,
-                    LocationId,
-                    Location,
-                    TransactionCount
-                )
-                values
-                (
-                    :recordTime,
-                    :locationId,
-                    :location,
-                    :transactionCount
-                );
-            exception when dup_val_on_index then
-                update ULS_LIBINSIGHT_HILL_HEADCOUNTS set
-                    TransactionCount = :transactionCount
-                where
-                    RecordTime = :recordTime and
-                    LocationId = :locationId;
-            end;
+            MERGE INTO LIBINSIGHT_HILL_HEADCOUNTS AS TARGET
+            USING (
+                VALUES (?, ?, ?, ?)
+            ) AS SOURCE (RecordTime, LocationId, Location, TransactionCount)
+            ON SOURCE.RecordTime = TARGET.RecordTime AND SOURCE.LocationId = TARGET.LocationId
+            WHEN MATCHED THEN
+                UPDATE SET TransactionCount = SOURCE.TransactionCount
+            WHEN NOT MATCHED THEN
+                INSERT (RecordTime, LocationId, Location, TransactionCount)
+                VALUES (SOURCE.RecordTime, SOURCE.LocationId, SOURCE.Location, SOURCE.TransactionCount);
         ", records);
     }
 }

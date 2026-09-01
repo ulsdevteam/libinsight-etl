@@ -1,4 +1,5 @@
 using Flurl.Http;
+using Flurl.Http.Newtonsoft;
 using Newtonsoft.Json.Linq;
 
 /// <summary>
@@ -9,9 +10,10 @@ class LibInsightClient
     public LibInsightClient()
     {
         Client = new FlurlClient("https://pitt.libinsight.com/v1.0");
+        Client.Settings.JsonSerializer = new NewtonsoftJsonSerializer();
     }
 
-    IFlurlClient Client { get; }
+    FlurlClient Client { get; }
 
     /// <summary>
     /// Call the LibInsight OAuth endpoint to get an access token and store it.
