@@ -152,6 +152,7 @@ class InstructionOutreachDataset : Dataset
     {
         await EnsureTablesExist();
         var records = await LibInsightClient.GetCustomDatasetRecords(DatasetId, RequestId, fromDate, toDate);
+        var seenRecordIds = new HashSet<int>();
         foreach (var record in records)
         {
             try
@@ -160,8 +161,10 @@ class InstructionOutreachDataset : Dataset
                 if (recordId is null)
                 {
                     Console.Error.WriteLine("Record is missing an Id.");
+                    continue;
                 }
-                else if (await RecordExistsInDb(recordId.Value))
+    
+                if (await RecordExistsInDb(recordId.Value))
                 {
                     await UpdateRecord(record);
                 }
@@ -169,12 +172,69 @@ class InstructionOutreachDataset : Dataset
                 {
                     await InsertRecord(record);
                 }
+                seenRecordIds.Add(recordId.Value);
             }
             catch (DbException exception)
             {
                 Console.Error.WriteLine(exception);
             }
         }
+    
+        await RemoveDeletedRecords(fromDate, toDate, seenRecordIds);
+    }
+    
+    /// <summary>
+    /// Deletes any records from Snowflake that fall within the given date range but were not
+    /// returned by the API in this call — i.e. they were deleted from the LibInsight source.
+    /// </summary>
+    /// <param name="fromDate">Start of the date range that was processed.</param>
+    /// <param name="toDate">End of the date range that was processed.</param>
+    /// <param name="seenRecordIds">The RecordIds returned by the API for this date range.</param>
+    async Task RemoveDeletedRecords(DateTime fromDate, DateTime toDate, HashSet<int> seenRecordIds)
+    {
+        var rangeParams = new DynamicParameters();
+        rangeParams.Add("1", fromDate);
+        rangeParams.Add("2", toDate);
+        var existingRecordIds = await Connection.QueryAsync<int>(@"
+            select RecordId from LIBINSIGHT_INST_RECORDS
+            where StartDate >= ? and StartDate <= ?
+        ", rangeParams);
+    
+        var recordIdsToDelete = existingRecordIds.Where(id => !seenRecordIds.Contains(id));
+        foreach (var recordId in recordIdsToDelete)
+        {
+            try
+            {
+                await DeleteRecord(recordId);
+            }
+            catch (DbException exception)
+            {
+                Console.Error.WriteLine(exception);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Deletes a record and all of its associated multiselect field data.
+    /// </summary>
+    /// <param name="recordId">The Id of the record to delete.</param>
+    async Task DeleteRecord(int recordId)
+    {
+        var p = new DynamicParameters();
+        p.Add("1", recordId);
+    
+        foreach (var field in MultiselectFields)
+        {
+            await Connection.ExecuteAsync(@$"
+                delete from {field.TableName}
+                where RecordId = ?
+            ", p);
+        }
+    
+        await Connection.ExecuteAsync(@"
+            delete from LIBINSIGHT_INST_RECORDS
+            where RecordId = ?
+        ", p);
     }
 
     /// <summary>
@@ -201,7 +261,7 @@ class InstructionOutreachDataset : Dataset
         var p = new DynamicParameters();
         p.Add("1", recordId);
         var records = await Connection.QueryAsync(
-            "select RECORDID from ULS_LIBINSIGHT_INST_RECORDS where RECORDID = ?",
+            "select RECORDID from LIBINSIGHT_INST_RECORDS where RECORDID = ?",
             p);
         return records.Any();
     }
