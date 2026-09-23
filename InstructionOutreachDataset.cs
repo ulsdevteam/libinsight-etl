@@ -193,11 +193,11 @@ class InstructionOutreachDataset : Dataset
     async Task RemoveDeletedRecords(DateTime fromDate, DateTime toDate, HashSet<int> seenRecordIds)
     {
         var rangeParams = new DynamicParameters();
-        rangeParams.Add("1", fromDate);
-        rangeParams.Add("2", toDate);
+        rangeParams.Add("1", fromDate.Date);
+        rangeParams.Add("2", toDate.Date.AddDays(1));
         var existingRecordIds = await Connection.QueryAsync<int>(@"
             select RecordId from LIBINSIGHT_INST_RECORDS
-            where StartDate >= ? and StartDate <= ?
+            where StartDate >= ? and StartDate < ?
         ", rangeParams);
     
         var recordIdsToDelete = existingRecordIds.Where(id => !seenRecordIds.Contains(id));
